@@ -1,0 +1,38 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+require 'vagrant'
+require 'logger'
+
+
+targets = ARGV.to_a 
+exit 1 if targets.empty?
+
+
+ENV['VAGRANT_LOG'] = "STDOUT"
+env = Vagrant::Environment.new
+env.cli "up"
+
+
+begin
+  env.primary_vm.ssh.execute do |ssh|
+    handler = lambda do |ch, type, data|
+      case type
+      when :stdout
+        STDOUT.print data
+      when :stderr
+        STDERR.print data
+      when :exit_status
+        if data != 0
+          command_failed(data)
+        end
+      end
+    end
+  
+    ssh.exec!("DISPLAY=:1 PATH=/tmp/firefox/:$PATH cd /selenium-trunk && ./go #{targets.join ' '}", &handler)
+  end
+ensure
+  # todo: snapshots.
+  puts "destroying VM..."
+  env.cli "destroy"
+end
