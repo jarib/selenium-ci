@@ -7,6 +7,7 @@ targets = ARGV.to_a
 exit 1 if targets.empty?
 
 ENV['VAGRANT_LOG'] = "STDOUT"
+Dir.chdir File.expand_path("../..", __FILE__)
 env = Vagrant::Environment.new
 env.cli "up"
 
