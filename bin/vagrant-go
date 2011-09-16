@@ -6,8 +6,17 @@ require 'vagrant'
 targets = ARGV.to_a 
 exit 1 if targets.empty?
 
+selenium_ci_root = File.expand_path("../..", __FILE__)
+
+if File.exist?("selenium-trunk")
+  repo = Dir.pwd # assume we're in the working dir
+  Dir.chdir selenium_ci_root
+  File.symlink(repo, "selenium-trunk")
+else
+  Dir.chdir selenium_ci_root
+end
+
 ENV['VAGRANT_LOG'] = "STDOUT"
-Dir.chdir File.expand_path("../..", __FILE__)
 env = Vagrant::Environment.new
 env.cli "up"
 
