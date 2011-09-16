@@ -24,7 +24,7 @@ begin
         STDERR.print data
       when :exit_status
         if data != 0
-          command_failed(data)
+          puts "command failed with status: #{data}"
         end
       end
     end
