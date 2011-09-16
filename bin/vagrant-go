@@ -2,19 +2,18 @@
 
 require 'rubygems'
 require 'vagrant'
+require 'fileutils'
 
 targets = ARGV.to_a 
 exit 1 if targets.empty?
 
 selenium_ci_root = File.expand_path("../..", __FILE__)
+selenium_trunk = "selenium-trunk"
 
-if File.exist?("selenium-trunk")
-  repo = Dir.pwd # assume we're in the working dir
-  Dir.chdir selenium_ci_root
-  File.symlink(repo, "selenium-trunk")
-else
-  Dir.chdir selenium_ci_root
-end
+repo = Dir.pwd # assume we're in the working dir
+Dir.chdir selenium_ci_root
+FileUtils.rm_rf selenium_trunk
+File.symlink(repo, "selenium-trunk")
 
 ENV['VAGRANT_LOG'] = "STDOUT"
 env = Vagrant::Environment.new
