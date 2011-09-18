@@ -4,13 +4,18 @@ require 'rubygems'
 require 'vagrant'
 require 'fileutils'
 
-targets = ARGV.to_a 
+targets = ARGV.to_a
 exit 1 if targets.empty?
 
 selenium_ci_root = File.expand_path("../..", __FILE__)
 selenium_trunk = "selenium-trunk"
 
 repo = Dir.pwd # assume we're in the working dir
+
+unless File.exist?(File.join(repo, "go"))
+  raise "not a selenium repo: #{repo.inspect}"
+end
+
 Dir.chdir selenium_ci_root
 FileUtils.rm_rf selenium_trunk
 File.symlink(repo, "selenium-trunk")
@@ -21,7 +26,14 @@ env.cli "up"
 
 begin
   env.primary_vm.ssh.execute do |ssh|
-    ssh.exec!("DISPLAY=:1 PATH=/tmp/firefox/:$PATH cd /selenium-trunk && ./go #{targets.join ' '}") do |ch, type, data|
+    commands = [
+      "export DISPLAY=:1",
+      "export PATH=/tmp/firefox/:$PATH",
+      "cd /selenium-trunk",
+      "./go #{targets.join ' '}"
+    ]
+
+    ssh.exec!(commands) do |ch, type, data|
       case type
       when :stdout
         STDOUT.print data
@@ -31,6 +43,8 @@ begin
         if data != 0
           puts "command failed with status: #{data}"
         end
+      else
+        STDERR.puts "unknown type: #{type.inspect} (#{data.inspect})"
       end
     end
   end
