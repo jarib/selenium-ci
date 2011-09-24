@@ -3,53 +3,107 @@
 require 'rubygems'
 require 'vagrant'
 require 'fileutils'
+require 'net/ssh'
+require 'net/ssh/shell'
 
-targets = ARGV.to_a
-exit 1 if targets.empty?
+class VagrantGo
+  TIMEOUT = 60*30 # 30 minutes should be enough
 
-selenium_ci_root = File.expand_path("../..", __FILE__)
-selenium_trunk = "selenium-trunk"
+  def initialize(targets)
+    @targets = targets
+  end
 
-repo = Dir.pwd # assume we're in the working dir
+  def execute
+    $stdout.sync = true
+    $stderr.sync = true
 
-unless File.exist?(File.join(repo, "go"))
-  raise "not a selenium repo: #{repo.inspect}"
-end
+    ensure_repo_linked
+    launch_vm
+    run_commands
+  ensure
+    # destroy_vm
+  end
 
-Dir.chdir selenium_ci_root
-FileUtils.rm_rf selenium_trunk
-File.symlink(repo, "selenium-trunk")
+  private
 
-ENV['VAGRANT_LOG'] = "STDOUT"
-env = Vagrant::Environment.new
-env.cli "up"
+  def launch_vm
+    vagrant.cli "up"
+  end
 
-begin
-  env.primary_vm.ssh.execute do |ssh|
-    commands = [
-      "export DISPLAY=:1",
-      "export PATH=/tmp/firefox/:$PATH",
-      "cd /selenium-trunk",
-      "./go #{targets.join ' '}"
-    ]
+  def destroy_vm
+    vagrant.cli "destroy"
+  end
 
-    ssh.exec!(commands) do |ch, type, data|
-      case type
-      when :stdout
-        STDOUT.print data
-      when :stderr
-        STDERR.print data
-      when :exit_status
-        if data != 0
-          puts "command failed with status: #{data}"
-        end
-      else
-        STDERR.puts "unknown type: #{type.inspect} (#{data.inspect})"
+  def run_commands
+    commands.each do |cmd|
+      status = exec(cmd)
+      if status != 0
+        raise "command exited with status #{status}: #{cmd.inspect}"
       end
     end
   end
-ensure
-  # TODO: snapshots.
-  puts "destroying VM..."
-  env.cli "destroy"
+
+  def ensure_repo_linked
+    selenium_ci_root = File.expand_path("../..", __FILE__)
+    selenium_trunk = "selenium-trunk"
+
+    repo = Dir.pwd # assume we're in the working dir
+    unless File.exist?(File.join(repo, "go"))
+      raise "not a selenium repo: #{repo.inspect}"
+    end
+
+    Dir.chdir selenium_ci_root
+    FileUtils.rm_rf selenium_trunk
+    File.symlink(repo, "selenium-trunk")
+  end
+
+  def vagrant
+    @vagrant ||= (
+      ENV['VAGRANT_LOG'] = "STDOUT"
+      Vagrant::Environment.new
+    )
+  end
+
+  def commands
+    [
+      "export DISPLAY=:1",
+      "export PATH=/tmp/firefox/:$PATH",
+      "cd /selenium-trunk",
+      "./go #{@targets.join ' '}"
+    ]
+  end
+
+  def shell
+    @shell ||= (
+      Net::SSH.start('localhost', 'vagrant', :port => vagrant.primary_vm.ssh.port,
+                                             :keys => [vagrant.primary_vm.env.config.ssh.private_key_path]
+      ).shell
+    )
+  end
+
+  def exec(command)
+    start_time = Time.now
+    status     = nil
+
+    shell.execute(command) do |process|
+      process.on_output       { |prc, data| $stdout.print data }
+      process.on_error_output { |prc, data| $stderr.print data }
+      process.on_finish       { |prc| status = prc.exit_status }
+    end
+
+    shell.session.loop do
+      if Time.now >= (start_time + TIMEOUT)
+        raise "command timed out after #{TIMEOUT} seconds: #{command}"
+      end
+
+      status.nil?
+    end
+
+    status
+  end
+end
+
+if __FILE__ == $0
+  exit 1 if ARGV.empty?
+  VagrantGo.new(ARGV).execute
 end
