@@ -5,6 +5,7 @@ group { "puppet":
 exec { "apt-update":
   command => "/usr/bin/apt-get update"
 }
+
 Exec["apt-update"] -> Package <| |>
 
 package { "subversion": 
@@ -17,3 +18,4 @@ package { "openjdk-6-jdk":
 
 include xvfb
 include firefox
+include chrome
