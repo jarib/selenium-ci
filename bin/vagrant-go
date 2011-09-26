@@ -8,6 +8,7 @@ require 'fileutils'
 require 'net/ssh'
 require 'net/ssh/shell'
 require 'logger'
+require "fcntl"
 
 class VagrantGo
   class Error < StandardError
@@ -48,12 +49,12 @@ class VagrantGo
 
   def launch_vm
     log.info "launching VM from #{Dir.pwd}"
-    locked { vagrant.cli "up" }
+    with_lock_guard { vagrant.cli "up" }
   end
 
   def destroy_vm
     log.info "destroying VM from #{Dir.pwd}"
-    locked { vagrant.cli "destroy" }
+    with_lock_guard { vagrant.cli "destroy" }
   end
 
   def run_commands
@@ -94,7 +95,6 @@ class VagrantGo
   def vagrant
     @vagrant ||= (
       ENV['VAGRANT_LOG'] = "STDOUT"
-      ENV['VAGRANT_HOME'] = File.join(Dir.pwd, 'vagrant.d')
       Vagrant::Environment.new
     )
   end
@@ -144,11 +144,13 @@ class VagrantGo
 
   def ssh_port
     @ssh_port ||= (
-      server = TCPServer.new("127.0.0.1", 0)
-      port   = server.addr[1]
-      server.close
+      locked {
+        server = TCPServer.new("127.0.0.1", 0)
+        port   = server.addr[1]
+        server.close
 
-      port
+        port
+      }
     )
   end
 
@@ -161,28 +163,45 @@ class VagrantGo
     local_path
   end
 
+  def with_lock_guard(&blk)
+    start_time = Time.now
+    begin
+      yield
+    rescue Vagrant::Errors::EnvironmentLockedError
+      if Time.now > (start_time + VM_LOCK_TIMEOUT)
+        raise Error, "timed out after #{VM_LOCK_TIMEOUT} seconds, waiting for vm lock"
+      end
+      
+      log.info "waiting for vm lock"
+      sleep 1
+      retry
+    end
+  end
+  
   def locked(&blk)
     start_time = Time.now
-
+  
     File.open(lock_path, "w+") { |f|
+      f.fcntl Fcntl::F_SETFD, Fcntl::FD_CLOEXEC
+      
       while f.flock(File::LOCK_EX | File::LOCK_NB) === false
-        log.info "waiting for vm lock"
-
+        log.info "waiting for #{lock_path.inspect}"
+  
         if Time.now >= (start_time + VM_LOCK_TIMEOUT)
           raise Error, "timed out after #{VM_LOCK_TIMEOUT} seconds waiting for lock on #{lock_path.inspect}"
         end
-
+  
         sleep 1
       end
-
+  
       yield
     }
   end
-
+  
   def lock_path
-    @lock_path ||= File.join(ROOT, "vm-launch.lock")
+    @lock_path ||= File.join(ROOT, "find-free-port.lock")
   end
-
+  
   def log
     @log ||= Logger.new(STDOUT)
   end
