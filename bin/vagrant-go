@@ -1,60 +1,92 @@
 #!/usr/bin/env ruby
 
 require 'rubygems'
+require 'tmpdir'
 require 'vagrant'
+require 'erb'
 require 'fileutils'
 require 'net/ssh'
 require 'net/ssh/shell'
+require 'logger'
 
 class VagrantGo
+  class Error < StandardError
+  end
+
+  ROOT          = File.expand_path("../..", __FILE__)
+  TEMPLATE_PATH = File.join(ROOT, "Vagrantfile.erb")
+  PUPPET_PATH   = File.join(ROOT, "puppet")
+
   TIMEOUT = 60*30 # 30 minutes should be enough
 
   def initialize(targets)
     @targets = targets
+    @repo = Dir.pwd # command expected to be run from source checkout.
+
+    unless File.exist?(File.join(@repo, "go"))
+      raise Error, "not a selenium repo: #{repo.inspect}"
+    end
   end
 
   def execute
     $stdout.sync = true
     $stderr.sync = true
 
-    ensure_repo_linked
-    launch_vm
-    run_commands
-  ensure
-    destroy_vm # ideally roll back to snapshot
+    in_vm_dir {
+      begin
+        launch_vm
+        run_commands
+      ensure
+        destroy_vm  # ideally roll back to snapshot
+      end
+    }
   end
 
   private
 
   def launch_vm
+    log.info "launching VM from #{Dir.pwd}"
     vagrant.cli "up"
   end
 
   def destroy_vm
+    log.info "destroying VM from #{Dir.pwd}"
     vagrant.cli "destroy"
   end
 
   def run_commands
     commands.each do |cmd|
+      log.info "executing command: #{cmd.inspect}"
       status = exec(cmd)
       if status != 0
-        raise "command exited with status #{status}: #{cmd.inspect}"
+        msg = "command exited with status #{status}: #{cmd.inspect}"
+        log.error msg
+        raise Error, msg
+      else
+        log.info "executing command: #{cmd.inspect} exited with status #{status}"
       end
     end
   end
 
-  def ensure_repo_linked
-    selenium_ci_root = File.expand_path("../..", __FILE__)
-    selenium_trunk = "selenium-trunk"
+  def in_vm_dir(&blk)
+    vm_dir = Dir.mktmpdir
 
-    repo = Dir.pwd # assume we're in the working dir
-    unless File.exist?(File.join(repo, "go"))
-      raise "not a selenium repo: #{repo.inspect}"
+    # vars used by template
+    puppet_path = PUPPET_PATH
+    repo_path   = @repo
+
+    destination = File.join(vm_dir, "Vagrantfile")
+    log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
+
+    File.open(destination, "w") do |io|
+      io << ERB.new(template, nil, "%-<>").result(binding)
     end
 
-    Dir.chdir selenium_ci_root
-    FileUtils.rm_rf selenium_trunk
-    File.symlink(repo, "selenium-trunk")
+    begin
+      Dir.chdir(vm_dir, &blk)
+    ensure
+      FileUtils.rm_rf vm_dir
+    end
   end
 
   def vagrant
@@ -62,6 +94,10 @@ class VagrantGo
       ENV['VAGRANT_LOG'] = "STDOUT"
       Vagrant::Environment.new
     )
+  end
+
+  def template
+    File.read(TEMPLATE_PATH)
   end
 
   def commands
@@ -75,7 +111,7 @@ class VagrantGo
 
   def shell
     @shell ||= (
-      Net::SSH.start('localhost', 'vagrant', :port    => vagrant.primary_vm.ssh.port,
+      Net::SSH.start('localhost', 'vagrant', :port    => ssh_port,
                                              :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
                                              :timeout => 20 # initial connection
       ).shell
@@ -101,6 +137,20 @@ class VagrantGo
     end
 
     status
+  end
+
+  def ssh_port
+    @ssh_port ||= (
+      server = TCPServer.new("127.0.0.1", 0)
+      port   = server.addr[1]
+      server.close
+
+      port
+    )
+  end
+
+  def log
+    @log ||= Logger.new(STDOUT)
   end
 end
 
