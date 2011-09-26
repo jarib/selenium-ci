@@ -8,6 +8,7 @@ require 'fileutils'
 require 'net/ssh'
 require 'net/ssh/shell'
 require 'logger'
+require "fcntl"
 
 class VagrantGo
   class Error < StandardError
@@ -17,7 +18,7 @@ class VagrantGo
   TEMPLATE_PATH = File.join(ROOT, "Vagrantfile.erb")
   PUPPET_PATH   = File.join(ROOT, "puppet")
 
-  COMMAND_TIMEOUT        = 60*30 
+  COMMAND_TIMEOUT        = 60*30
   VM_LOCK_TIMEOUT        = 60*10
   SSH_CONNECTION_TIMEOUT = 20
 
@@ -165,6 +166,8 @@ class VagrantGo
     start_time = Time.now
 
     File.open(lock_path, "w+") { |f|
+      f.fcntl Fcntl::F_SETFD, Fcntl::FD_CLOEXEC # close on exec - don't let VBox* inherit the lock
+
       while f.flock(File::LOCK_EX | File::LOCK_NB) === false
         log.info "waiting for vm lock"
 
