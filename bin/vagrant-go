@@ -17,7 +17,9 @@ class VagrantGo
   TEMPLATE_PATH = File.join(ROOT, "Vagrantfile.erb")
   PUPPET_PATH   = File.join(ROOT, "puppet")
 
-  TIMEOUT = 60*30 # 30 minutes should be enough
+  COMMAND_TIMEOUT        = 60*30 
+  VM_LOCK_TIMEOUT        = 60*10
+  SSH_CONNECTION_TIMEOUT = 20
 
   def initialize(targets)
     @targets = targets
@@ -46,12 +48,12 @@ class VagrantGo
 
   def launch_vm
     log.info "launching VM from #{Dir.pwd}"
-    vagrant.cli "up"
+    locked { vagrant.cli "up" }
   end
 
   def destroy_vm
     log.info "destroying VM from #{Dir.pwd}"
-    vagrant.cli "destroy"
+    locked { vagrant.cli "destroy" }
   end
 
   def run_commands
@@ -114,7 +116,7 @@ class VagrantGo
     @shell ||= (
       Net::SSH.start('localhost', 'vagrant', :port    => ssh_port,
                                              :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
-                                             :timeout => 20 # initial connection
+                                             :timeout => SSH_CONNECTION_TIMEOUT # initial connection
       ).shell
     )
   end
@@ -130,8 +132,8 @@ class VagrantGo
     end
 
     shell.session.loop do
-      if Time.now >= (start_time + TIMEOUT)
-        raise "command timed out after #{TIMEOUT} seconds: #{command}"
+      if Time.now >= (start_time + COMMAND_TIMEOUT)
+        raise "command timed out after #{COMMAND_TIMEOUT} seconds: #{command}"
       end
 
       status.nil?
@@ -157,6 +159,28 @@ class VagrantGo
     end
 
     local_path
+  end
+
+  def locked(&blk)
+    start_time = Time.now
+
+    File.open(lock_path, "w+") { |f|
+      while f.flock(File::LOCK_EX | File::LOCK_NB) === false
+        log.info "waiting for vm lock"
+
+        if Time.now >= (start_time + VM_LOCK_TIMEOUT)
+          raise Error, "timed out after #{VM_LOCK_TIMEOUT} seconds waiting for lock on #{lock_path.inspect}"
+        end
+
+        sleep 1
+      end
+
+      yield
+    }
+  end
+
+  def lock_path
+    @lock_path ||= File.join(ROOT, "vm-launch.lock")
   end
 
   def log
