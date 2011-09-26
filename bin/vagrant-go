@@ -75,8 +75,9 @@ class VagrantGo
 
   def shell
     @shell ||= (
-      Net::SSH.start('localhost', 'vagrant', :port => vagrant.primary_vm.ssh.port,
-                                             :keys => [vagrant.primary_vm.env.config.ssh.private_key_path]
+      Net::SSH.start('localhost', 'vagrant', :port    => vagrant.primary_vm.ssh.port,
+                                             :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
+                                             :timeout => 20 # initial connection
       ).shell
     )
   end
