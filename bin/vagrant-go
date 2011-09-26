@@ -21,7 +21,7 @@ class VagrantGo
     launch_vm
     run_commands
   ensure
-    # destroy_vm
+    destroy_vm # ideally roll back to snapshot
   end
 
   private
