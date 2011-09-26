@@ -24,7 +24,7 @@ class VagrantGo
     @repo = Dir.pwd # command expected to be run from source checkout.
 
     unless File.exist?(File.join(@repo, "go"))
-      raise Error, "not a selenium repo ('go' not found): #{repo.inspect}"
+      raise Error, "not a selenium repo ('go' not found): #{@repo.inspect}"
     end
   end
 
@@ -92,16 +92,13 @@ class VagrantGo
   def vagrant
     @vagrant ||= (
       ENV['VAGRANT_LOG'] = "STDOUT"
-      Vagrant::Environment.new(:lock_path => lock_path)
+      ENV['VAGRANT_HOME'] = File.join(Dir.pwd, 'vagrant.d')
+      Vagrant::Environment.new
     )
   end
 
   def template
     File.read(TEMPLATE_PATH)
-  end
-
-  def lock_path
-    File.join(Dir.pwd, 'vagrant-selenium-ci.lock')
   end
 
   def commands
@@ -151,6 +148,15 @@ class VagrantGo
 
       port
     )
+  end
+
+  def box_url
+    local_path = File.expand_path(File.join(ROOT, "tmp/selenium-ci.box"))
+    unless File.exist?(local_path)
+      raise Error, "please download http://files.jaribakken.com/selenium2/selenium-ci.box to #{local_path} for concurrent VMs"
+    end
+
+    local_path
   end
 
   def log
