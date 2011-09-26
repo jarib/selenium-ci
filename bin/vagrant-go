@@ -24,7 +24,7 @@ class VagrantGo
     @repo = Dir.pwd # command expected to be run from source checkout.
 
     unless File.exist?(File.join(@repo, "go"))
-      raise Error, "not a selenium repo: #{repo.inspect}"
+      raise Error, "not a selenium repo ('go' not found): #{repo.inspect}"
     end
   end
 
