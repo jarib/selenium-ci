@@ -92,12 +92,16 @@ class VagrantGo
   def vagrant
     @vagrant ||= (
       ENV['VAGRANT_LOG'] = "STDOUT"
-      Vagrant::Environment.new
+      Vagrant::Environment.new(:lock_path => lock_path)
     )
   end
 
   def template
     File.read(TEMPLATE_PATH)
+  end
+
+  def lock_path
+    File.join(Dir.pwd, 'vagrant-selenium-ci.lock')
   end
 
   def commands
