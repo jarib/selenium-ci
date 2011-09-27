@@ -11,14 +11,16 @@ require 'logger'
 require "fcntl"
 
 class VagrantGo
-  class Error < StandardError
-  end
+  class Error < StandardError; end
+  class TimeoutError < StandardError; end
+  class CommandFailedError < StandardError; end
 
   ROOT             = File.expand_path("../..", __FILE__)
   TEMPLATE_PATH    = File.join(ROOT, "Vagrantfile.erb")
   PUPPET_PATH      = File.join(ROOT, "puppet")
+  VM_REPO_PATH     = "/selenium-trunk"
 
-  COMMAND_TIMEOUT        = 60*45
+  COMMAND_TIMEOUT        = 30
   VM_LOCK_TIMEOUT        = 60*15
   SSH_CONNECTION_TIMEOUT = 20
 
@@ -38,7 +40,8 @@ class VagrantGo
     in_vm_dir {
       begin
         launch_vm
-        run_commands
+        prepare_environment
+        run_build
       ensure
         destroy_vm  # ideally roll back to snapshot
       end
@@ -57,30 +60,13 @@ class VagrantGo
     with_lock_guard { vagrant.cli "destroy" }
   end
 
-  def run_commands
-    status = 0
-
-    commands.each do |cmd|
-      log.info "executing command: #{cmd}"
-      status = exec(cmd)
-      log.info "exit status #{status}    : #{cmd}"
-
-      if status != 0
-        raise Error, "command exited with status #{status}: #{cmd.inspect}"
-      end
-    end
-  ensure
-    if status != 0
-      check_xvfb_status
-    end
-  end
-
   def in_vm_dir(&blk)
     vm_dir = Dir.mktmpdir
 
     # vars used by template
-    puppet_path = PUPPET_PATH
-    repo_path   = @repo
+    puppet_path  = PUPPET_PATH
+    repo_path    = @repo
+    vm_repo_path = VM_REPO_PATH
 
     destination = File.join(vm_dir, "Vagrantfile")
     log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
@@ -107,37 +93,42 @@ class VagrantGo
     File.read(TEMPLATE_PATH)
   end
 
-  def commands
-    [
-      "export DISPLAY=:1",
-      "export PATH=/tmp/firefox/:$PATH",
-      "cd /selenium-trunk",
-      "./go #{@targets.join ' '}"
-    ]
+  def prepare_environment
+    run_command "export DISPLAY=:1"
+    run_command "export PATH=/tmp/firefox/:$PATH"
+    run_command "cd #{VM_REPO_PATH}"
+  end
+
+  def run_build
+    run_command "./go #{@targets.join ' '}"
+  rescue TimeoutError
+    in_separate_shell { save_screenshot }
   end
 
   def shell
-    @shell ||= (
-      Net::SSH.start('localhost', 'vagrant', :port    => ssh_port,
-                                             :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
-                                             :timeout => SSH_CONNECTION_TIMEOUT # initial connection
-      ).shell
-    )
+    @shell ||= new_shell
   end
 
-  def exec(command)
+  def new_shell
+    Net::SSH.start('localhost', 'vagrant', :port    => ssh_port,
+                                           :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
+                                           :timeout => SSH_CONNECTION_TIMEOUT # initial connection
+    ).shell
+  end
+
+  def exec(command, out = $stdout, err = $stderr)
     start_time = Time.now
     status     = nil
 
     shell.execute(command) do |process|
-      process.on_output       { |prc, data| $stdout.print data }
-      process.on_error_output { |prc, data| $stderr.print data }
+      process.on_output       { |prc, data| out.print data }
+      process.on_error_output { |prc, data| err.print data }
       process.on_finish       { |prc| status = prc.exit_status }
     end
 
     shell.session.loop(0.5) do
       if Time.now >= (start_time + COMMAND_TIMEOUT)
-        raise "command timed out after #{COMMAND_TIMEOUT} seconds: #{command}"
+        raise TimeoutError, "command timed out after #{COMMAND_TIMEOUT} seconds: #{command}"
       end
 
       status.nil?
@@ -158,13 +149,25 @@ class VagrantGo
     )
   end
 
+  def in_separate_shell(&blk)
+    old_shell = @shell
+    @shell = new_shell
+
+    begin
+      yield
+    ensure
+      @shell.close!
+      @shell = old_shell
+    end
+  end
+
   def with_lock_guard(&blk)
     start_time = Time.now
     begin
       yield
     rescue Vagrant::Errors::EnvironmentLockedError
       if Time.now > (start_time + VM_LOCK_TIMEOUT)
-        raise Error, "timed out after #{VM_LOCK_TIMEOUT} seconds, waiting for vm lock"
+        raise TimeoutError, "timed out after #{VM_LOCK_TIMEOUT} seconds, waiting for vm lock"
       end
 
       log.info "waiting for vm lock"
@@ -174,9 +177,8 @@ class VagrantGo
   end
 
   def locked(&blk)
-    start_time = Time.now
-
     FileUtils.mkdir_p File.dirname(lock_path)
+    start_time = Time.now
 
     File.open(lock_path, "w+") { |f|
       f.fcntl Fcntl::F_SETFD, Fcntl::FD_CLOEXEC
@@ -203,10 +205,40 @@ class VagrantGo
     @log ||= Logger.new(STDOUT)
   end
 
-  def check_xvfb_status
-    log.warn "checking xvfb status"
+  def run_command(cmd)
+    status = 0
+
+    log.info "executing command: #{cmd}"
+    status = exec(cmd)
+    log.info "exit status #{status}    : #{cmd}"
+
+    if status != 0
+      raise CommandFailedError, "command exited with status #{status}: #{cmd.inspect}"
+    end
+  end
+
+  def save_screenshot
+    screenshot = File.join(VM_REPO_PATH, 'build', "vagrant-screenshot.jpg")
+    log.info "saving screenshot to #{screenshot}"
+
+    status = exec("~/take-screenshot.sh > #{screenshot}")
+    log.warn "failed to save screenshot" if status != 0
+  end
+
+  def output_dir
+    @output_dir ||= (
+      dir = File.join(@repo, 'build', 'vagrant')
+      FileUtils.mkdir_p dir
+
+      dir
+    )
+  end
+
+  def xvfb_running?
     status = exec "/etc/init.d/xvfb status" # did xvfb die during the build?
-    log.error "could not check xvfb status" if status != 0
+    log.info "xvfb status: #{status}"
+
+    status == 0
   end
 end
 
