@@ -165,7 +165,7 @@ class VagrantGo
       raise Error, "please download #{VAGRANT_BOX_URL} to #{VAGRANT_BOX_PATH} for concurrent VMs"
     end
 
-    local_path
+    VAGRANT_BOX_PATH
   end
 
   def with_lock_guard(&blk)
