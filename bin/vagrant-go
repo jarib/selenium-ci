@@ -14,9 +14,11 @@ class VagrantGo
   class Error < StandardError
   end
 
-  ROOT          = File.expand_path("../..", __FILE__)
-  TEMPLATE_PATH = File.join(ROOT, "Vagrantfile.erb")
-  PUPPET_PATH   = File.join(ROOT, "puppet")
+  ROOT             = File.expand_path("../..", __FILE__)
+  TEMPLATE_PATH    = File.join(ROOT, "Vagrantfile.erb")
+  PUPPET_PATH      = File.join(ROOT, "puppet")
+  VAGRANT_BOX_PATH = File.join(ROOT, "tmp/selenium-ci.box")
+  VAGRANT_BOX_URL  = "http://files.jaribakken.com/selenium2/selenium-ci.box"
 
   COMMAND_TIMEOUT        = 60*30
   VM_LOCK_TIMEOUT        = 60*10
@@ -159,9 +161,8 @@ class VagrantGo
   end
 
   def box_url
-    local_path = File.expand_path(File.join(ROOT, "tmp/selenium-ci.box"))
-    unless File.exist?(local_path)
-      raise Error, "please download http://files.jaribakken.com/selenium2/selenium-ci.box to #{local_path} for concurrent VMs"
+    unless File.exist?(VAGRANT_BOX_PATH)
+      raise Error, "please download #{VAGRANT_BOX_URL} to #{VAGRANT_BOX_PATH} for concurrent VMs"
     end
 
     local_path

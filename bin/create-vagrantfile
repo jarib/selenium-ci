@@ -6,7 +6,13 @@ outpath = ARGV.first or raise "please provide an output path"
 template = File.read(VagrantGo::TEMPLATE_PATH)
 
 ssh_port = 2222
-box_url = "http://files.jaribakken.com/selenium2/selenium-ci.box"
+
+if File.exist?(VagrantGo::VAGRANT_BOX_PATH)
+  box_url = VagrantGo::VAGRANT_BOX_PATH
+else
+  box_url = VagrantGo::VAGRANT_BOX_URL
+end
+
 repo_path = nil
 puppet_path = VagrantGo::PUPPET_PATH
 
