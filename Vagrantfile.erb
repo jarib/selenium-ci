@@ -1,6 +1,6 @@
 Vagrant::Config.run do |config|
   config.vm.box = "selenium-ci"
-  config.vm.box_url = "<%= box_url %>"
+  config.vm.box_url = "http://files.jaribakken.com/selenium2/selenium-ci.box"
 
   # Boot with a GUI so you can see the screen. (Default is headless)
   # config.vm.boot_mode = :gui

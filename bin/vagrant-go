@@ -17,8 +17,6 @@ class VagrantGo
   ROOT             = File.expand_path("../..", __FILE__)
   TEMPLATE_PATH    = File.join(ROOT, "Vagrantfile.erb")
   PUPPET_PATH      = File.join(ROOT, "puppet")
-  VAGRANT_BOX_PATH = File.join(ROOT, "tmp/selenium-ci.box")
-  VAGRANT_BOX_URL  = "http://files.jaribakken.com/selenium2/selenium-ci.box"
 
   COMMAND_TIMEOUT        = 60*45
   VM_LOCK_TIMEOUT        = 60*15
@@ -158,14 +156,6 @@ class VagrantGo
         port
       }
     )
-  end
-
-  def box_url
-    unless File.exist?(VAGRANT_BOX_PATH)
-      raise Error, "please download #{VAGRANT_BOX_URL} to #{VAGRANT_BOX_PATH} for concurrent VMs"
-    end
-
-    VAGRANT_BOX_PATH
   end
 
   def with_lock_guard(&blk)
