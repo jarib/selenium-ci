@@ -2,6 +2,16 @@ class xvfb {
   package { "xvfb": 
     ensure => present
   }
+  
+  # for screenshots
+  package { "x11-apps":
+    ensure => present,
+  }
+  
+  # for screenshots
+  package { "netpbm":
+    ensure => present,
+  }
 
   file { "/etc/init.d/xvfb":
     ensure => file,
