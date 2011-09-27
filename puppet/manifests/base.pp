@@ -16,6 +16,7 @@ package { "openjdk-6-jdk":
   ensure => present
 }
 
+include guestadditions
 include xvfb
 include firefox
 include chrome
