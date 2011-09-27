@@ -1,4 +1,5 @@
 #!/bin/sh
+
 XVFB=/usr/bin/Xvfb
 XVFBARGS=":1 -ac -screen 0 1024x768x16"
 PIDFILE=/tmp/xvfb-pid-1
@@ -19,6 +20,11 @@ case "$1" in
     if [ -f $PIDFILE ] && [ -d /proc/$(cat $PIDFILE) ]; then
       echo "Xvfb running."
       exit 0
+    elif [ -f $PIDFILE ]; then
+      echo "old pidfile found, removing.."
+      rm $PIDFILE
+      echo "Xvfb not running."
+      exit 5
     else
       echo "Xvfb not running."
       exit 4
