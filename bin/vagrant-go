@@ -21,7 +21,7 @@ class VagrantGo
   VAGRANT_BOX_URL  = "http://files.jaribakken.com/selenium2/selenium-ci.box"
 
   COMMAND_TIMEOUT        = 60*30
-  VM_LOCK_TIMEOUT        = 60*10
+  VM_LOCK_TIMEOUT        = 60*15
   SSH_CONNECTION_TIMEOUT = 20
 
   def initialize(targets)
