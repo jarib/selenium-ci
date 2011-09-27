@@ -135,7 +135,7 @@ class VagrantGo
       process.on_finish       { |prc| status = prc.exit_status }
     end
 
-    shell.session.loop do
+    shell.session.loop(0.5) do
       if Time.now >= (start_time + COMMAND_TIMEOUT)
         raise "command timed out after #{COMMAND_TIMEOUT} seconds: #{command}"
       end
