@@ -12,10 +12,13 @@ class opera {
   }
 
   File['opera-apt-source'] -> Exec['add-opera-deb-key'] -> Exec['apt-update']
-  
-  # how do we get past the license agreement popup on first launch?
 
   package { "opera":
+    ensure => present
+  }
+
+  # needed for the opera launcher
+  package { "libprotobuf6":
     ensure => present
   }
 }
