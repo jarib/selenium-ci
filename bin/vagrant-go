@@ -102,7 +102,7 @@ class VagrantGo
     log.info opts.inspect
 
     @targets      = args - xargs
-    @manifest     = opts.delete('manifest') || 'firefox'
+    @manifest     = opts.delete('manifest') || 'base'
     @vnc_port     = Integer(opts.delete('vnc.port')) if opts.member?('vnc.port')
     @record_video = opts.delete('video').to_s == "true"
 
