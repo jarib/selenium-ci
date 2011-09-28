@@ -1,16 +1,23 @@
 class xvfb {
-  package { "xvfb": 
+  package { "xvfb":
     ensure => present
   }
-  
+
   # for screenshots
   package { "x11-apps":
     ensure => present,
   }
-  
+
   # for screenshots
   package { "netpbm":
     ensure => present,
+  }
+
+  file { "take-screenshot.sh":
+    ensure => file,
+    path => "/usr/bin/take-screenshot",
+    mode => 755,
+    source => "file:///tmp/vagrant-puppet/modules-0/xvfb/files/take-screenshot.sh", # not ideal
   }
 
   file { "/etc/init.d/xvfb":
@@ -19,15 +26,8 @@ class xvfb {
     mode => 755,
     owner => root
   }
-  
-  file { "take-screenshot.sh":
-    ensure => file,
-    path => "/home/vagrant/take-screenshot.sh",
-    mode => 755,
-    source => "file:///tmp/vagrant-puppet/modules-0/xvfb/files/take-screenshot.sh" # not ideal
-  }
-  
-  service { "xvfb": 
+
+  service { "xvfb":
     ensure => running,
     require => [Package['xvfb'], File['/etc/init.d/xvfb']]
   }

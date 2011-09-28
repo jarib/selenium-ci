@@ -7,19 +7,19 @@ class chrome {
     path => "/etc/apt/sources.list.d/google.list",
     content => "deb ${apt_source} stable main"
   }
-  
+
   exec { "add-google-deb-key":
     command => "GET ${google_deb_key} | apt-key add -",
     path => "/usr/bin:/usr/sbin:/bin:/usr/local/bin",
-    onlyif => "/usr/bin/test `apt-key list | grep -F Google | wc -l` -eq 0",
+    onlyif => "test `apt-key list | grep -F Google | wc -l` -eq 0",
   }
-  
+
   File['google-apt-source'] -> Exec['add-google-deb-key'] -> Exec['apt-update']
-  
-  package { "google-chrome-unstable": 
+
+  package { "google-chrome-unstable":
     ensure => present
   }
-  
+
   file { "chromedriver":
      mode => 755,
      ensure => file,

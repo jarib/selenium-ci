@@ -2,13 +2,5 @@
 
 load File.expand_path("../vagrant-go", __FILE__)
 
-outpath = ARGV.first or raise "please provide an output path"
-template = File.read(VagrantGo::TEMPLATE_PATH)
-
-ssh_port    = 2222
-repo_path   = nil
-puppet_path = VagrantGo::PUPPET_PATH
-
-File.open(outpath, "w") do |file|
-  file << ERB.new(template, nil, "%-<>").result(binding)
-end
+out = ARGV.shift or raise "please provide an output path"
+VagrantGo.new(ARGV).write_vagrantfile_to out

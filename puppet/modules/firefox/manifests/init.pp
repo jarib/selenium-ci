@@ -11,6 +11,6 @@ class firefox {
     command => "tar jxvf firefox.tar.bz2",
     require => File['firefox-tarball'],
     path => ["/usr/bin", "/bin"],
-    onlyif => "test `ls /tmp/firefox/firefox | wc -l` -eq 0"
+    onlyif => "test ! -f /tmp/firefox/firefox"
   }
 }

@@ -24,9 +24,8 @@ class VagrantGo
   VM_LOCK_TIMEOUT        = 60*15
   SSH_CONNECTION_TIMEOUT = 20
 
-  def initialize(targets)
-    @targets = targets
-    @repo = Dir.pwd # command expected to be run from source checkout.
+  def initialize(args)
+    parse_args args
 
     unless File.exist?(File.join(@repo, "go"))
       raise Error, "not a selenium repo ('go' not found): #{@repo.inspect}"
@@ -48,7 +47,65 @@ class VagrantGo
     }
   end
 
+  def write_vagrantfile_to(dest_dir)
+    unless File.directory? dest_dir
+      raise ArgumentError, "#{dest_dir} is not a directory"
+    end
+
+    # vars used by template
+    puppet_path   = PUPPET_PATH
+    repo_path     = @repo
+    vm_repo_path  = VM_REPO_PATH
+    manifest_file = "#{@manifest}.pp"
+
+    destination = File.join(dest_dir, "Vagrantfile")
+    log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
+
+    File.open(destination, "w") do |io|
+      io << ERB.new(template, nil, "%-<>").result(binding)
+    end
+  end
+
   private
+
+  def parse_args(args)
+    if args.empty?
+      puts <<-HELP
+
+    #{File.basename $PROGRAM_NAME} [options] [targets]
+
+    Options:
+
+      -Xmanifest=<name> - what manifest to use for the VM (default: firefox)
+      -Xrepo=<name>     - path to selenium checkout (default: cwd)
+
+      HELP
+      exit 1
+    end
+
+    opts = {}
+
+    xargs = args.select { |arg|
+      case arg
+      when /^-X(.+)=(.+)$/
+        opts[$1] = $2
+        true
+      when /^-X(.+)$/
+        opts[$1] = true
+      else
+        false
+      end
+    }
+
+
+    @targets  = args - xargs
+    @manifest = opts.delete('manifest') || 'firefox'
+    @repo     = File.expand_path(opts.delete('repo') || Dir.pwd) # assume we're running from a checkout
+
+    unless opts.empty?
+      raise ArgumentError, "unknown options #{opts.inspect}"
+    end
+  end
 
   def launch_vm
     log.info "launching VM from #{Dir.pwd}"
@@ -61,19 +118,10 @@ class VagrantGo
   end
 
   def in_vm_dir(&blk)
+    log.info "creating #{@manifest} VM for `#{target_string}` #{@repo}"
+
     vm_dir = Dir.mktmpdir
-
-    # vars used by template
-    puppet_path  = PUPPET_PATH
-    repo_path    = @repo
-    vm_repo_path = VM_REPO_PATH
-
-    destination = File.join(vm_dir, "Vagrantfile")
-    log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
-
-    File.open(destination, "w") do |io|
-      io << ERB.new(template, nil, "%-<>").result(binding)
-    end
+    write_vagrantfile_to vm_dir
 
     begin
       Dir.chdir(vm_dir, &blk)
@@ -94,15 +142,17 @@ class VagrantGo
   end
 
   def prepare_environment
-    run_command "export DISPLAY=:1"
-    run_command "export PATH=/tmp/firefox/:$PATH"
     run_command "cd #{VM_REPO_PATH}"
   end
 
   def run_build
-    run_command "./go #{@targets.join ' '}"
+    run_command "./go #{target_string}"
   rescue TimeoutError
     in_separate_shell { save_screenshot }
+  end
+
+  def target_string
+    @target_string ||= @targets.join(' ')
   end
 
   def shell
