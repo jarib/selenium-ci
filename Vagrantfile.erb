@@ -1,31 +1,23 @@
 Vagrant::Config.run do |config|
-  config.vm.box = "selenium-ci"
-  config.vm.box_url = "http://files.jaribakken.com/selenium2/selenium-ci.box"
+  config.vm.box      = "selenium-ci"
+  config.vm.box_url  = "http://files.jaribakken.com/selenium2/selenium-ci.box"
+  config.vm.host_name = "selenium-ci-<%= manifest %>"
 
-  # Boot with a GUI so you can see the screen. (Default is headless)
-  # config.vm.boot_mode = :gui
-
-  # Assign this VM to a host only network IP, allowing you to access it
-  # via the IP.
-  # config.vm.network "33.33.33.10"
-
-  # Forward a port from the guest to the host, which allows for outside
-  # computers to access the VM, whereas host only networking does not.
   config.vm.forward_port "ssh", 22, <%= ssh_port %>
   config.vm.forward_port "vnc", 5901, <%= vnc_port %>
 
-	<%- if repo_path -%>
+  <%- if repo_path -%>
   # Share an additional folder to the guest VM. The first argument is
   # an identifier, the second is the path on the guest to mount the
   # folder, and the third is the path on the host to the actual folder.
 
   config.vm.share_folder "selenium-trunk", "<%= vm_repo_path %>", "<%= repo_path %>"
-	<%- end -%>
+  <%- end -%>
 
   config.vm.provision :puppet do |puppet|
     puppet.manifests_path = "<%= puppet_path %>/manifests"
     puppet.module_path    = "<%= puppet_path %>/modules"
-    puppet.manifest_file  = "<%= manifest_file %>"
+    puppet.manifest_file  = "<%= manifest %>.pp"
     # puppet.options        = "--verbose --debug"
   end
 

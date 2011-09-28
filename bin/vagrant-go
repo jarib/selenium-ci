@@ -52,7 +52,7 @@ class VagrantGo
     puppet_path   = PUPPET_PATH
     repo_path     = @repo
     vm_repo_path  = VM_REPO_PATH
-    manifest_file = "#{@manifest}.pp"
+    manifest      = @manifest
 
     destination = File.join(dest_dir, "Vagrantfile")
     log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
