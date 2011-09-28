@@ -27,6 +27,4 @@ class common {
     owner => vagrant,
     source => "file:///tmp/vagrant-puppet/modules-0/common/files/bashrc"
   }
-
-  include guestadditions
 }
