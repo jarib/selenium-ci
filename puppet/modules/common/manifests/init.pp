@@ -17,6 +17,10 @@ class common {
     ensure => present
   }
 
+  package { "ffmpeg":
+    ensure => present
+  }
+
   file { "/home/vagrant/.bashrc":
     ensure => file,
     mode => 644,

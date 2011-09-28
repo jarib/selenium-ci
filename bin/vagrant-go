@@ -79,6 +79,7 @@ class VagrantGo
       -Xmanifest=<name> - what manifest to use for the VM (default: firefox)
       -Xrepo=<name>     - path to selenium checkout (default: cwd)
       -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
+      -Xvideo           - enable video recording
 
       HELP
       exit 1
@@ -164,7 +165,9 @@ class VagrantGo
   def run_build
     if @repo
       run_command "cd #{VM_REPO_PATH}"
-      run_command "./go #{target_string}"
+      record {
+        run_command "./go #{target_string}"
+      }
     else
       run_command target_string
     end
@@ -206,14 +209,41 @@ class VagrantGo
     status
   end
 
+  def record(&blk)
+    return yield unless @record_video
+
+    output_file = "/tmp/build-video.mp4"
+    log_file = "/tmp/build-video-log.txt"
+
+    log.info "starting video recording @ #{output_file.inspect}"
+    run_command "ffmpeg -an -f x11grab -y -r 5 -s 1024x768 -i :1.0+0,0 -vcodec mpeg4 -sameq #{output_file} &"
+
+    begin
+      res = yield
+    ensure
+      video_dest = File.join VM_REPO_PATH, 'build', 'build-video.mp4'
+      log_dest = File.join VM_REPO_PATH, 'build', 'build-video-log.txt'
+
+      log.info "moving #{output_file} -> #{video_dest}"
+      status = exec "mv #{output_file} #{video_dest}"
+      log.warn "could not move video to build folder" unless status == 0
+
+      log.info "moving #{log_file} -> #{log_dest}"
+      status = exec "mv #{log_file} #{log_dest}"
+      log.warn "could not move video log to build folder" unless status == 0
+    end
+
+    res
+  end
+
   def ssh_port
     @ssh_port ||= find_free_port
   end
-  
+
   def vnc_port
     @vnc_port ||= find_free_port
   end
-  
+
   def find_free_port
     locked {
       server = TCPServer.new("127.0.0.1", 0)
@@ -302,6 +332,5 @@ class VagrantGo
 end
 
 if __FILE__ == $0
-  exit 1 if ARGV.empty?
   VagrantGo.new(ARGV).execute
 end
