@@ -1,6 +1,0 @@
-#!/usr/bin/env ruby
-
-load File.expand_path("../vagrant-go", __FILE__)
-
-out = ARGV.shift or raise "please provide an output path"
-VagrantGo.new(ARGV).write_vagrantfile_to out

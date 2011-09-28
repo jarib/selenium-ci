@@ -1,0 +1,8 @@
+#!/usr/bin/env ruby
+
+load File.expand_path("../vagrant-go", __FILE__)
+
+dest = File.join(VagrantGo::ROOT, "tmp/tmp-box")
+FileUtils.mkdir_p dest
+
+VagrantGo.new(ARGV).write_vagrantfile_to dest
