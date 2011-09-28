@@ -1,5 +1,5 @@
 class tightvncserver {
-  
+
   package { "tightvncserver":
     ensure => present
   }
@@ -29,12 +29,13 @@ class tightvncserver {
     path => "/usr/bin:/bin",
     onlyif => 'test ! -f "/home/vagrant/.vnc/lucid32:1.pid"',
     user => "vagrant",
+    cwd => "/home/vagrant",
     logoutput => on_failure,
     environment => ["HOME=/home/vagrant"]
   }
-  
+
   Package['tightvncserver']  -> Exec['start-vncserver']
   File["/home/vagrant/.vnc"] -> File['/home/vagrant/.vnc/xstartup'] -> Exec['start-vncserver']
-  File['/home/vagrant/.vnc'] -> File['/home/vagrant/.vnc/passwd']   -> Exec['start-vncserver']         
+  File['/home/vagrant/.vnc'] -> File['/home/vagrant/.vnc/passwd']   -> Exec['start-vncserver']
 }
 

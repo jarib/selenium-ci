@@ -62,6 +62,10 @@ class VagrantGo
     end
   end
 
+  def say(*args)
+    log.info args.first
+  end
+
   private
 
   def parse_args(args)
@@ -96,37 +100,38 @@ class VagrantGo
 
     log.info opts.inspect
 
-    @targets  = args - xargs
-    @manifest = opts.delete('manifest') || 'firefox'
-    @vnc_port = Integer(opts.delete('vnc.port')) if opts.member?('vnc.port')
-    
+    @targets      = args - xargs
+    @manifest     = opts.delete('manifest') || 'firefox'
+    @vnc_port     = Integer(opts.delete('vnc.port')) if opts.member?('vnc.port')
+    @record_video = opts.delete('video').to_s == "true"
+
     @repo = opts.delete('repo') { Dir.pwd } # assume we're running from a checkout
     if @repo == "none"
       @repo = nil
     else
-      @repo = File.expand_path(@repo) 
+      @repo = File.expand_path(@repo)
     end
 
     unless opts.empty?
       raise ArgumentError, "unknown options #{opts.inspect}"
     end
   end
-  
+
   def check_repo
     return unless @repo
-    
+
     unless File.exist?(File.join(@repo, "go"))
       raise Error, "not a selenium repo: #{@repo.inspect}, specify -Xrepo=none if you want to execute arbitrary commands"
     end
   end
 
   def launch_vm
-    log.info "launching VM from #{Dir.pwd}"
+    log.info "launching VM @ #{Dir.pwd}"
     with_lock_guard { vagrant.cli "up" }
   end
 
   def destroy_vm
-    log.info "destroying VM from #{Dir.pwd}"
+    log.info "destroying VM @ #{Dir.pwd}"
     with_lock_guard { vagrant.cli "destroy" }
   end
 
@@ -145,8 +150,10 @@ class VagrantGo
 
   def vagrant
     @vagrant ||= (
-      ENV['VAGRANT_LOG'] = "STDOUT"
-      Vagrant::Environment.new
+      env = Vagrant::Environment.new
+      env.ui = Vagrant::UI::Shell.new(env, self)
+
+      env
     )
   end
 
@@ -270,7 +277,14 @@ class VagrantGo
   end
 
   def log
-    @log ||= Logger.new(STDOUT)
+    @log ||= (
+      logger = Logger.new(STDOUT)
+      logger.formatter = Proc.new do |severity, datetime, progname, msg|
+        "#{datetime} | #{severity} | #{msg}\n"
+      end
+
+      logger
+    )
   end
 
   def run_command(cmd)
