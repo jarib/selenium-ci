@@ -11,8 +11,8 @@ Vagrant::Config.run do |config|
 
   # Forward a port from the guest to the host, which allows for outside
   # computers to access the VM, whereas host only networking does not.
-  # config.vm.forward_port "http", 80, 8080
   config.vm.forward_port "ssh", 22, <%= ssh_port %>
+  config.vm.forward_port "vnc", 5901, <%= vnc_port %>
 
 	<%- if repo_path -%>
   # Share an additional folder to the guest VM. The first argument is
@@ -26,7 +26,7 @@ Vagrant::Config.run do |config|
     puppet.manifests_path = "<%= puppet_path %>/manifests"
     puppet.module_path    = "<%= puppet_path %>/modules"
     puppet.manifest_file  = "<%= manifest_file %>"
-    puppet.options        = "--verbose --debug"
+    # puppet.options        = "--verbose --debug"
   end
 
 end

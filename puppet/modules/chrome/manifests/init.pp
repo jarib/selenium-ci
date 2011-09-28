@@ -1,11 +1,11 @@
 class chrome {
-  $apt_source = "http://dl.google.com/linux/chrome/deb/"
-  $google_deb_key = "http://dl-ssl.google.com/linux/linux_signing_key.pub" # should use https, but not supported by GET by default
+  # should use https, but not supported by GET by default
+  $google_deb_key = "http://dl-ssl.google.com/linux/linux_signing_key.pub" 
 
   file { "google-apt-source":
     ensure => file,
     path => "/etc/apt/sources.list.d/google.list",
-    content => "deb ${apt_source} stable main"
+    content => "deb http://dl.google.com/linux/chrome/deb/ stable main"
   }
 
   exec { "add-google-deb-key":

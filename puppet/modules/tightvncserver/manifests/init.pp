@@ -1,4 +1,5 @@
 class tightvncserver {
+  
   package { "tightvncserver":
     ensure => present
   }
@@ -31,5 +32,9 @@ class tightvncserver {
     logoutput => on_failure,
     environment => ["HOME=/home/vagrant"]
   }
+  
+  Package['tightvncserver']  -> Exec['start-vncserver']
+  File["/home/vagrant/.vnc"] -> File['/home/vagrant/.vnc/xstartup'] -> Exec['start-vncserver']
+  File['/home/vagrant/.vnc'] -> File['/home/vagrant/.vnc/passwd']   -> Exec['start-vncserver']         
 }
 

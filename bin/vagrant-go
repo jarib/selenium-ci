@@ -20,16 +20,13 @@ class VagrantGo
   PUPPET_PATH      = File.join(ROOT, "puppet")
   VM_REPO_PATH     = "/selenium-trunk"
 
-  COMMAND_TIMEOUT        = 30
+  COMMAND_TIMEOUT        = 60*30
   VM_LOCK_TIMEOUT        = 60*15
   SSH_CONNECTION_TIMEOUT = 20
 
   def initialize(args)
     parse_args args
-
-    unless File.exist?(File.join(@repo, "go"))
-      raise Error, "not a selenium repo ('go' not found): #{@repo.inspect}"
-    end
+    check_repo
   end
 
   def execute
@@ -39,7 +36,6 @@ class VagrantGo
     in_vm_dir {
       begin
         launch_vm
-        prepare_environment
         run_build
       ensure
         destroy_vm  # ideally roll back to snapshot
@@ -78,6 +74,7 @@ class VagrantGo
 
       -Xmanifest=<name> - what manifest to use for the VM (default: firefox)
       -Xrepo=<name>     - path to selenium checkout (default: cwd)
+      -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
 
       HELP
       exit 1
@@ -97,13 +94,29 @@ class VagrantGo
       end
     }
 
+    log.info opts.inspect
 
     @targets  = args - xargs
     @manifest = opts.delete('manifest') || 'firefox'
-    @repo     = File.expand_path(opts.delete('repo') || Dir.pwd) # assume we're running from a checkout
+    @vnc_port = Integer(opts.delete('vnc.port')) if opts.member?('vnc.port')
+    
+    @repo = opts.delete('repo') { Dir.pwd } # assume we're running from a checkout
+    if @repo == "none"
+      @repo = nil
+    else
+      @repo = File.expand_path(@repo) 
+    end
 
     unless opts.empty?
       raise ArgumentError, "unknown options #{opts.inspect}"
+    end
+  end
+  
+  def check_repo
+    return unless @repo
+    
+    unless File.exist?(File.join(@repo, "go"))
+      raise Error, "not a selenium repo: #{@repo.inspect}, specify -Xrepo=none if you want to execute arbitrary commands"
     end
   end
 
@@ -118,7 +131,7 @@ class VagrantGo
   end
 
   def in_vm_dir(&blk)
-    log.info "creating #{@manifest} VM for `#{target_string}` #{@repo}"
+    log.info "creating VM with manifest #{@manifest.inspect} for `#{target_string}` [#{@repo}]"
 
     vm_dir = Dir.mktmpdir
     write_vagrantfile_to vm_dir
@@ -141,14 +154,13 @@ class VagrantGo
     File.read(TEMPLATE_PATH)
   end
 
-  def prepare_environment
-    run_command "cd #{VM_REPO_PATH}"
-  end
-
   def run_build
-    run_command "./go #{target_string}"
-  rescue TimeoutError
-    in_separate_shell { save_screenshot }
+    if @repo
+      run_command "cd #{VM_REPO_PATH}"
+      run_command "./go #{target_string}"
+    else
+      run_command target_string
+    end
   end
 
   def target_string
@@ -188,15 +200,21 @@ class VagrantGo
   end
 
   def ssh_port
-    @ssh_port ||= (
-      locked {
-        server = TCPServer.new("127.0.0.1", 0)
-        port   = server.addr[1]
-        server.close
+    @ssh_port ||= find_free_port
+  end
+  
+  def vnc_port
+    @vnc_port ||= find_free_port
+  end
+  
+  def find_free_port
+    locked {
+      server = TCPServer.new("127.0.0.1", 0)
+      port   = server.addr[1]
+      server.close
 
-        port
-      }
-    )
+      port
+    }
   end
 
   def in_separate_shell(&blk)
@@ -267,29 +285,6 @@ class VagrantGo
     end
   end
 
-  def save_screenshot
-    screenshot = File.join(VM_REPO_PATH, 'build', "vagrant-screenshot.jpg")
-    log.info "saving screenshot to #{screenshot}"
-
-    status = exec("~/take-screenshot.sh > #{screenshot}")
-    log.warn "failed to save screenshot" if status != 0
-  end
-
-  def output_dir
-    @output_dir ||= (
-      dir = File.join(@repo, 'build', 'vagrant')
-      FileUtils.mkdir_p dir
-
-      dir
-    )
-  end
-
-  def xvfb_running?
-    status = exec "/etc/init.d/xvfb status" # did xvfb die during the build?
-    log.info "xvfb status: #{status}"
-
-    status == 0
-  end
 end
 
 if __FILE__ == $0
