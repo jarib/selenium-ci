@@ -6,9 +6,9 @@ Vagrant::Config.run do |config|
   config.vm.forward_port "ssh", 22, <%= ssh_port %>
   config.vm.forward_port "vnc", 5901, <%= vnc_port %>
 
-	config.vm.customize do |vm|
-	  vm.memory_size = 512
-	end
+  config.vm.customize do |vm|
+    vm.memory_size = 512
+  end
 
   <%- if repo_path -%>
   # Share an additional folder to the guest VM. The first argument is
