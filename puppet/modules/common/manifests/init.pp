@@ -21,6 +21,14 @@ class common {
     ensure => present
   }
 
+  package { "python-virtualenv":
+    ensure => present
+  }
+
+  package { "python-pip":
+    ensure => present
+  }
+
   file { "/home/vagrant/.bashrc":
     ensure => file,
     mode => 644,
