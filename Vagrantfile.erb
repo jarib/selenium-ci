@@ -1,6 +1,6 @@
 Vagrant::Config.run do |config|
-  config.vm.box      = "selenium-ci"
-  config.vm.box_url  = "http://files.jaribakken.com/selenium2/selenium-ci.box"
+  config.vm.box      = "selenium-ci-base"
+  config.vm.box_url  = "http://files.jaribakken.com/selenium2/selenium-ci-base.box"
   config.vm.host_name = "selenium-ci-<%= manifest %>"
 
   config.vm.forward_port "ssh", 22, <%= ssh_port %>
