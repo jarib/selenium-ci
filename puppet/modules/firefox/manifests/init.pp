@@ -18,4 +18,10 @@ class firefox {
     path => ["/usr/bin", "/bin"],
     onlyif => "[ ! -f /tmp/firefox/firefox ]"
   }
+
+  # for native events
+  file { "/usr/lib/libX11.so.6":
+    ensure => file,
+    target => "/usr/lib/i386-linux-gnu/libX11.so.6"
+  }
 }
