@@ -6,11 +6,16 @@ class firefox {
     path => "/tmp/firefox.tar.bz2"
   }
 
+  file { "/etc/profile.d/firefox-path.sh":
+    content => 'export PATH=/tmp/firefox:$PATH',
+    mode => 755
+  }
+
   exec { "install-firefox":
     cwd => "/tmp",
     command => "tar jxvf firefox.tar.bz2",
     require => File['firefox-tarball'],
     path => ["/usr/bin", "/bin"],
-    onlyif => "test ! -f /tmp/firefox/firefox"
+    onlyif => "[ ! -f /tmp/firefox/firefox ]"
   }
 }

@@ -28,11 +28,4 @@ class common {
   package { "python-pip":
     ensure => present
   }
-
-  file { "/home/vagrant/.bashrc":
-    ensure => file,
-    mode => 644,
-    owner => vagrant,
-    source => "file:///tmp/vagrant-puppet/modules-0/common/files/bashrc"
-  }
 }
