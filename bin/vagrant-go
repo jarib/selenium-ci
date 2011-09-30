@@ -9,6 +9,7 @@ require 'net/ssh'
 require 'net/ssh/shell'
 require 'logger'
 require "fcntl"
+require 'timeout'
 
 class VagrantGo
   class Error < StandardError; end
@@ -23,6 +24,7 @@ class VagrantGo
   COMMAND_TIMEOUT        = 60*30
   VM_LOCK_TIMEOUT        = 60*15
   SSH_CONNECTION_TIMEOUT = 20
+  DESTROY_TIMEOUT        = 60
 
   def initialize(args)
     parse_args args
@@ -72,14 +74,14 @@ class VagrantGo
     if args.empty?
       puts <<-HELP
 
-    #{File.basename $PROGRAM_NAME} [options] [targets]
+      #{File.basename $PROGRAM_NAME} [options] [targets]
 
-    Options:
+      Options:
 
-      -Xmanifest=<name> - what manifest to use for the VM (default: firefox)
-      -Xrepo=<name>     - path to selenium checkout (default: cwd)
-      -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
-      -Xvideo           - enable video recording
+        -Xmanifest=<name> - what manifest to use for the VM (default: firefox)
+        -Xrepo=<name>     - path to selenium checkout (default: cwd)
+        -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
+        -Xvideo           - enable video recording
 
       HELP
       exit 1
@@ -133,7 +135,14 @@ class VagrantGo
 
   def destroy_vm
     log.info "destroying VM @ #{Dir.pwd}"
-    with_lock_guard { vagrant.cli "destroy" }
+    with_lock_guard do
+      # if we can't destroy within 60 seconds of receiving the lock, kill the VBoxHeadless process
+      begin
+        Timeout.timeout(DESTROY_TIMEOUT) { vagrant.cli "destroy" }
+      rescue Timeout::Error
+        kill_vm_by_pid
+      end
+    end
   end
 
   def in_vm_dir(&blk)
@@ -147,6 +156,10 @@ class VagrantGo
     ensure
       FileUtils.rm_rf vm_dir
     end
+  end
+  
+  def kill_vm_by_pid
+    raise NotImplementedError, "kill_vm_by_pid"
   end
 
   def vagrant
@@ -183,8 +196,8 @@ class VagrantGo
 
   def new_shell
     Net::SSH.start('localhost', 'vagrant', :port    => ssh_port,
-                                           :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
-                                           :timeout => SSH_CONNECTION_TIMEOUT # initial connection
+    :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
+    :timeout => SSH_CONNECTION_TIMEOUT # initial connection
     ).shell
   end
 
