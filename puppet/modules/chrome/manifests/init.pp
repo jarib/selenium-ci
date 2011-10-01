@@ -30,7 +30,7 @@ class chrome {
     command => "curl $chromedriver_url | funzip > /usr/bin/chromedriver",
     path    => "/usr/bin",
     onlyif  => "[ ! -f /usr/bin/chromedriver ]",
-    require => Package['unzip']
+    require => [Package['unzip'], Package['curl']]
   }
 
   file { "/usr/bin/chromedriver":
