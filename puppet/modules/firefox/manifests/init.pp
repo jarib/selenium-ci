@@ -19,9 +19,24 @@ class firefox {
     onlyif => "[ ! -f /tmp/firefox/firefox ]"
   }
 
-  # for native events
+  #
+  # for native events:
+  #
+
   file { "/usr/lib/libX11.so.6":
     ensure => link,
     target => "/usr/lib/i386-linux-gnu/libX11.so.6"
+  }
+
+  package { "pkg-config":
+    ensure => installed,
+  }
+
+  package { "libgtk2.0-dev":
+    ensure => installed,
+  }
+
+  package { "libibus-dev":
+    ensure => installed,
   }
 }
