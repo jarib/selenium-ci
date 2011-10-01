@@ -22,7 +22,7 @@ class tightvncserver {
   }
 
   exec { "create-vnc-passwd":
-    command   => "echo $vnc_passwd | vncpasswd -f > $vnc_passwdfile",
+    command   => "echo -n $vnc_passwd | vncpasswd -f > $vnc_passwdfile",
     path      => "/usr/bin:/usr/sbin:/bin:/usr/local/bin",
     user      => "vagrant",
     logoutput => on_failure,
