@@ -3,9 +3,9 @@ class firefox {
   $tarball = "/tools/firefox.tar.bz2"
 
   exec { "download-tarball":
-    command => "curl -o $tarball $firefox_url",
-    user => vagrant,
-    path => "/usr/bin",
+    command => "curl -o $tarball $url",
+    user    => vagrant,
+    path    => "/usr/bin",
     require => [File['/tools'], Package['curl']]
   }
 
@@ -15,11 +15,11 @@ class firefox {
   }
 
   exec { "install-firefox":
-    cwd => "/tools",
+    cwd     => "/tools",
     command => "tar jxvf firefox.tar.bz2",
-    require => File['firefox-tarball'],
-    path => ["/usr/bin", "/bin"],
-    onlyif => "[ ! -f /tools/firefox/firefox ]"
+    require => Exec['download-tarball'],
+    path    => ["/usr/bin", "/bin"],
+    onlyif  => "[ ! -f /tools/firefox/firefox ]"
   }
 
   #
