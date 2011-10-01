@@ -26,10 +26,11 @@ class chrome {
   }
 
   exec { "download-chromedriver":
-    cwd     => "/usr/bin"
+    cwd     => "/usr/bin",
     command => "curl $chromedriver_url | funzip > /usr/bin/chromedriver",
     path    => "/usr/bin",
-    onlyif  => "[ -f /usr/bin/chromedriver ]"
+    onlyif  => "[ ! -f /usr/bin/chromedriver ]",
+    require => Package['unzip']
   }
 
   file { "/usr/bin/chromedriver":
