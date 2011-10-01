@@ -1,6 +1,7 @@
 class chrome {
   # should use https, but not supported by GET by default
-  $google_deb_key = "http://dl-ssl.google.com/linux/linux_signing_key.pub" 
+  $google_deb_key = "http://dl-ssl.google.com/linux/linux_signing_key.pub"
+  $chromedriver_url = "http://chromium.googlecode.com/files/chromedriver_linux32_14.0.836.0.zip"
 
   file { "google-apt-source":
     ensure => file,
@@ -20,11 +21,21 @@ class chrome {
     ensure => present
   }
 
-  file { "chromedriver":
-     mode => 755,
-     ensure => file,
-     source => "file:///tmp/vagrant-puppet/modules-0/chrome/files/chromedriver", # not ideal
-     path => "/usr/bin/chromedriver"
+  package { "unzip":
+    ensure => present,
+  }
+
+  exec { "download-chromedriver":
+    cwd     => "/usr/bin"
+    command => "curl $chromedriver_url | funzip > /usr/bin/chromedriver",
+    path    => "/usr/bin",
+    onlyif  => "[ -f /usr/bin/chromedriver ]"
+  }
+
+  file { "/usr/bin/chromedriver":
+     mode    => 755,
+     ensure  => file,
+     require => Exec['download-chromedriver']
    }
 }
 
