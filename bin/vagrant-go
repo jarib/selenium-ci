@@ -15,10 +15,11 @@ class VagrantGo
   class TimeoutError < StandardError; end
   class CommandFailedError < StandardError; end
 
-  ROOT             = File.expand_path("../..", __FILE__)
-  TEMPLATE_PATH    = File.join(ROOT, "Vagrantfile.erb")
-  PUPPET_PATH      = File.join(ROOT, "puppet")
-  VM_REPO_PATH     = "/selenium-trunk"
+  ROOT                   = File.expand_path("../..", __FILE__)
+  VAGRANT_TEMPLATE_PATH  = File.join(ROOT, 'templates', "Vagrantfile.erb")
+  MANIFEST_TEMPLATE_PATH = File.join(ROOT, 'templates', "manifest.pp.erb")
+  PUPPET_PATH            = File.join(ROOT, "puppet")
+  VM_REPO_PATH           = "/selenium-trunk"
 
   COMMAND_TIMEOUT        = 60*30
   VM_LOCK_TIMEOUT        = 60*15
@@ -44,25 +45,33 @@ class VagrantGo
     }
   end
 
-  def write_vagrantfile_to(dest_dir)
+  def generate_files_in(dest_dir)
     unless File.directory? dest_dir
       raise ArgumentError, "#{dest_dir} is not a directory"
     end
 
-    # vars used by template
+    # vars used by templates
     puppet_path   = PUPPET_PATH
     repo_path     = @repo
     vm_repo_path  = VM_REPO_PATH
-    manifest      = @manifest
-
+    manifest      = @modules.join '-'
+    modules       = @modules
+    
+    destination = File.join(dest_dir, "#{manifest}.pp")
+    log.info "creating manifest [#{destination}] for #{repo_path}"
+    
+    File.open(destination, "w") do |io|
+      io << ERB.new(File.read(MANIFEST_TEMPLATE_PATH), nil, "%-<>").result(binding)
+    end
+    
     destination = File.join(dest_dir, "Vagrantfile")
     log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
 
     File.open(destination, "w") do |io|
-      io << ERB.new(template, nil, "%-<>").result(binding)
+      io << ERB.new(File.read(VAGRANT_TEMPLATE_PATH), nil, "%-<>").result(binding)
     end
   end
-
+  
   def say(*args)
     log.info args.first
   end
@@ -77,7 +86,7 @@ class VagrantGo
 
       Options:
 
-        -Xmanifest=<name> - what manifest to use for the VM (default: firefox)
+        -Xmodules=<list>  - comma-separated list of  modules to use for the VM (default: firefox)
         -Xrepo=<name>     - path to selenium checkout (default: cwd)
         -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
         -Xvideo           - enable video recording
@@ -103,7 +112,7 @@ class VagrantGo
     log.info opts.inspect
 
     @targets      = args - xargs
-    @manifest     = opts.delete('manifest') || 'base'
+    @modules      = opts.delete('modules').to_s.split(',')
     @vnc_port     = Integer(opts.delete('vnc.port')) if opts.member?('vnc.port')
     @record_video = opts.delete('video').to_s == "true"
 
@@ -152,10 +161,10 @@ class VagrantGo
   end
 
   def in_vm_dir(&blk)
-    log.info "creating VM with manifest #{@manifest.inspect} for `#{target_string}` [#{@repo}]"
+    log.info "creating VM with modules #{@modules.inspect} for `#{target_string}` [#{@repo}]"
 
     vm_dir = Dir.mktmpdir
-    write_vagrantfile_to vm_dir
+    generate_files_in vm_dir
 
     begin
       Dir.chdir(vm_dir, &blk)
@@ -175,10 +184,6 @@ class VagrantGo
 
   def vm_name
     vagrant.primary_vm.vm.name
-  end
-
-  def template
-    File.read(TEMPLATE_PATH)
   end
 
   def run_build
