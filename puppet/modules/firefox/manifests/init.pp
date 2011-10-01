@@ -3,10 +3,11 @@ class firefox {
   $tarball = "/tools/firefox.tar.bz2"
 
   exec { "download-tarball":
-    command => "curl -o $tarball $url",
-    user    => vagrant,
-    path    => "/usr/bin",
-    require => [File['/tools'], Package['curl']]
+    command   => "curl -o $tarball $url",
+    user      => vagrant,
+    path      => "/usr/bin",
+    require   => [File['/tools'], Package['curl']],
+    logoutput => on_failure
   }
 
   file { "/etc/profile.d/firefox-path.sh":
@@ -43,3 +44,4 @@ class firefox {
     ensure => installed,
   }
 }
+

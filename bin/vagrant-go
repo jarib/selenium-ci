@@ -22,7 +22,7 @@ class VagrantGo
   VM_REPO_PATH           = "/selenium-trunk"
 
   COMMAND_TIMEOUT        = 60*30
-  VM_LOCK_TIMEOUT        = 60*15
+  VM_LOCK_TIMEOUT        = 60*35
   DESTROY_TIMEOUT        = 60*10
   SSH_CONNECTION_TIMEOUT = 20
 
