@@ -58,14 +58,14 @@ class VagrantGo
     modules       = @modules
 
     destination = File.join(dest_dir, "#{manifest}.pp")
-    log.info "creating manifest [#{destination}] for #{repo_path}"
+    info "creating manifest [#{destination}] for #{repo_path}"
 
     File.open(destination, "w") do |io|
       io << ERB.new(File.read(MANIFEST_TEMPLATE_PATH), nil, "%-<>").result(binding)
     end
 
     destination = File.join(dest_dir, "Vagrantfile")
-    log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
+    info "creating Vagrantfile [#{destination}] for #{repo_path}"
 
     File.open(destination, "w") do |io|
       io << ERB.new(File.read(VAGRANT_TEMPLATE_PATH), nil, "%-<>").result(binding)
@@ -73,10 +73,14 @@ class VagrantGo
   end
 
   def say(*args)
-    log.info args.first
+    log.info "[vagrant] #{args.first}"
   end
 
   private
+
+  def info(str)
+    log.info "[selenium-ci] #{str}"
+  end
 
   def parse_args(args)
     if args.empty?
@@ -109,8 +113,6 @@ class VagrantGo
       end
     }
 
-    log.info opts.inspect
-
     @targets      = args - xargs
     @modules      = opts.delete('modules').to_s.split(',')
     @vnc_port     = Integer(opts.delete('vnc.port')) if opts.member?('vnc.port')
@@ -142,7 +144,7 @@ class VagrantGo
   end
 
   def destroy_vm
-    log.info "destroying VM @ #{Dir.pwd}"
+    info "destroying VM @ #{Dir.pwd}"
 
     locked do
       vbox_manage "controlvm '#{vm_name}' poweroff" or raise Error, "could not poweroff #{vm_name}!"
@@ -161,7 +163,7 @@ class VagrantGo
   end
 
   def in_vm_dir(&blk)
-    log.info "creating VM with modules #{@modules.inspect} for `#{target_string}` [#{@repo}]"
+    info "creating VM with modules #{@modules.inspect} for `#{target_string}` [#{@repo}]"
 
     vm_dir = Dir.mktmpdir
     generate_files_in vm_dir
@@ -239,7 +241,7 @@ class VagrantGo
     output_file = "/tmp/build-video.mp4"
     log_file = "/tmp/build-video-log.txt"
 
-    log.info "starting video recording @ #{output_file.inspect}"
+    info "starting video recording @ #{output_file.inspect}"
     run_command "ffmpeg -an -f x11grab -y -r 5 -s 1024x768 -i :1.0+0,0 -vcodec mpeg4 -sameq #{output_file} &"
 
     begin
@@ -248,11 +250,11 @@ class VagrantGo
       video_dest = File.join VM_REPO_PATH, 'build', 'build-video.mp4'
       log_dest = File.join VM_REPO_PATH, 'build', 'build-video-log.txt'
 
-      log.info "moving #{output_file} -> #{video_dest}"
+      info "moving #{output_file} -> #{video_dest}"
       status = exec "mv #{output_file} #{video_dest}"
       log.warn "could not move video to build folder" unless status == 0
 
-      log.info "moving #{log_file} -> #{log_dest}"
+      info "moving #{log_file} -> #{log_dest}"
       status = exec "mv #{log_file} #{log_dest}"
       log.warn "could not move video log to build folder" unless status == 0
     end
@@ -296,7 +298,7 @@ class VagrantGo
         yield
         true
       rescue Vagrant::Errors::EnvironmentLockedError
-        log.info "waiting for vm lock"
+        info "waiting for vm lock"
         false
       end
     }
@@ -322,7 +324,7 @@ class VagrantGo
       f.fcntl Fcntl::F_SETFD, Fcntl::FD_CLOEXEC
 
       while f.flock(File::LOCK_EX | File::LOCK_NB) === false
-        log.info "waiting for #{lock_path.inspect}"
+        info "waiting for #{lock_path.inspect}"
 
         if Time.now >= (start_time + VM_LOCK_TIMEOUT)
           raise Error, "timed out after #{VM_LOCK_TIMEOUT} seconds waiting for lock on #{lock_path.inspect}"
@@ -353,9 +355,9 @@ class VagrantGo
   def run_command(cmd)
     status = 0
 
-    log.info "executing command: #{cmd}"
+    info "executing command: #{cmd}"
     status = exec(cmd)
-    log.info "exit status #{status}    : #{cmd}"
+    info "exit status #{status}    : #{cmd}"
 
     if status != 0
       raise CommandFailedError, "command exited with status #{status}: #{cmd.inspect}"

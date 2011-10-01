@@ -1,5 +1,6 @@
 class firefox {
-  $url     = "http://releases.mozilla.org/pub/mozilla.org/firefox/releases/6.0.2/linux-i686/en-US/firefox-6.0.2.tar.bz2"
+  $version = "6.0.2"
+  $url     = "http://releases.mozilla.org/pub/mozilla.org/firefox/releases/$version/linux-i686/en-US/firefox-$version.tar.bz2"
   $tarball = "/tools/firefox.tar.bz2"
 
   exec { "download-tarball":
