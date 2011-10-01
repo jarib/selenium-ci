@@ -1,22 +1,25 @@
 class firefox {
+  $tarball = "/tools/firefox.tar.bz2"
+
   file { "firefox-tarball":
     mode => 644,
     ensure => file,
     source => "file:///tmp/vagrant-puppet/modules-0/firefox/files/firefox-6.0.2.tar.bz2", # not ideal
-    path => "/tmp/firefox.tar.bz2"
+    path => $tarball
+    require => File['/tools']
   }
 
   file { "/etc/profile.d/firefox-path.sh":
-    content => 'export PATH=/tmp/firefox:$PATH',
+    content => 'export PATH=/tools/firefox:$PATH',
     mode => 755
   }
 
   exec { "install-firefox":
-    cwd => "/tmp",
+    cwd => "/tools",
     command => "tar jxvf firefox.tar.bz2",
     require => File['firefox-tarball'],
     path => ["/usr/bin", "/bin"],
-    onlyif => "[ ! -f /tmp/firefox/firefox ]"
+    onlyif => "[ ! -f /tools/firefox/firefox ]"
   }
 
   #

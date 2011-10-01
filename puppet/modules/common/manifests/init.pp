@@ -10,6 +10,11 @@ class common {
 
   Exec["apt-update"] -> Package <| |>
 
+  file { "/tools":
+    ensure => directory,
+    owner => vagrant
+  }
+
   package { "subversion":
     ensure => present
   }
