@@ -9,7 +9,6 @@ require 'net/ssh'
 require 'net/ssh/shell'
 require 'logger'
 require "fcntl"
-require 'timeout'
 
 class VagrantGo
   class Error < StandardError; end
@@ -23,8 +22,8 @@ class VagrantGo
 
   COMMAND_TIMEOUT        = 60*30
   VM_LOCK_TIMEOUT        = 60*15
+  DESTROY_TIMEOUT        = 60*10
   SSH_CONNECTION_TIMEOUT = 20
-  DESTROY_TIMEOUT        = 60
 
   def initialize(args)
     parse_args args
@@ -135,14 +134,21 @@ class VagrantGo
 
   def destroy_vm
     log.info "destroying VM @ #{Dir.pwd}"
-    with_lock_guard do
-      # if we can't destroy within 60 seconds of receiving the lock, kill the VBoxHeadless process
-      begin
-        Timeout.timeout(DESTROY_TIMEOUT) { vagrant.cli "destroy" }
-      rescue Timeout::Error
-        kill_vm_by_pid
-      end
+
+    locked do
+      vbox_manage "controlvm '#{vm_name}' poweroff" or raise Error, "could not poweroff #{vm_name}!"
+      wait_until(DESTROY_TIMEOUT, 'destroy vm') { vbox_manage "showvminfo '#{vm_name}' | grep State | grep 'powered off'" }
+
+      vbox_manage "unregistervm '#{vm_name}' --delete"
+      wait_until(DESTROY_TIMEOUT, 'delete vm') { not vbox_manage("list vms | grep '#{vm_name}'") }
     end
+  end
+
+  def vbox_manage(cmd)
+    cmd = "VBoxManage #{cmd} 2>&1"
+    log.info "[vbox] #{cmd}"
+
+    system(cmd)
   end
 
   def in_vm_dir(&blk)
@@ -157,10 +163,6 @@ class VagrantGo
       FileUtils.rm_rf vm_dir
     end
   end
-  
-  def kill_vm_by_pid
-    raise NotImplementedError, "kill_vm_by_pid"
-  end
 
   def vagrant
     @vagrant ||= (
@@ -169,6 +171,10 @@ class VagrantGo
 
       env
     )
+  end
+
+  def vm_name
+    vagrant.primary_vm.vm.name
   end
 
   def template
@@ -196,8 +202,8 @@ class VagrantGo
 
   def new_shell
     Net::SSH.start('localhost', 'vagrant', :port    => ssh_port,
-    :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
-    :timeout => SSH_CONNECTION_TIMEOUT # initial connection
+                                           :keys    => [vagrant.primary_vm.env.config.ssh.private_key_path],
+                                           :timeout => SSH_CONNECTION_TIMEOUT # initial connection
     ).shell
   end
 
@@ -280,17 +286,26 @@ class VagrantGo
   end
 
   def with_lock_guard(&blk)
-    start_time = Time.now
-    begin
-      yield
-    rescue Vagrant::Errors::EnvironmentLockedError
-      if Time.now > (start_time + VM_LOCK_TIMEOUT)
-        raise TimeoutError, "timed out after #{VM_LOCK_TIMEOUT} seconds, waiting for vm lock"
+    wait_until(VM_LOCK_TIMEOUT, "vm lock") {
+      begin
+        yield
+        true
+      rescue Vagrant::Errors::EnvironmentLockedError
+        log.info "waiting for vm lock"
+        false
+      end
+    }
+  end
+
+  def wait_until(timeout, desc, &blk)
+    max = Time.now + timeout
+
+    until yield
+      if Time.now >= max
+        raise TimeoutError, "timed out after #{timeout} seconds, waiting for #{desc}"
       end
 
-      log.info "waiting for vm lock"
       sleep 1
-      retry
     end
   end
 
@@ -316,7 +331,7 @@ class VagrantGo
   end
 
   def lock_path
-    @lock_path ||= File.join(ROOT, "tmp", "find-free-port.lock")
+    @lock_path ||= File.join(ROOT, "tmp", "selenium-ci.lock")
   end
 
   def log
