@@ -1,3 +1,0 @@
-include common
-include tightvncserver
-include android

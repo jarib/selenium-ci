@@ -54,16 +54,16 @@ class VagrantGo
     puppet_path   = PUPPET_PATH
     repo_path     = @repo
     vm_repo_path  = VM_REPO_PATH
-    manifest      = @modules.join '-'
+    manifest      = @modules.empty? ? 'base' : @modules.join('-')
     modules       = @modules
-    
+
     destination = File.join(dest_dir, "#{manifest}.pp")
     log.info "creating manifest [#{destination}] for #{repo_path}"
-    
+
     File.open(destination, "w") do |io|
       io << ERB.new(File.read(MANIFEST_TEMPLATE_PATH), nil, "%-<>").result(binding)
     end
-    
+
     destination = File.join(dest_dir, "Vagrantfile")
     log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
 
@@ -71,7 +71,7 @@ class VagrantGo
       io << ERB.new(File.read(VAGRANT_TEMPLATE_PATH), nil, "%-<>").result(binding)
     end
   end
-  
+
   def say(*args)
     log.info args.first
   end
@@ -86,7 +86,7 @@ class VagrantGo
 
       Options:
 
-        -Xmodules=<list>  - comma-separated list of  modules to use for the VM (default: firefox)
+        -Xmodules=<list>  - comma-separated list of modules to use for the VM
         -Xrepo=<name>     - path to selenium checkout (default: cwd)
         -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
         -Xvideo           - enable video recording
