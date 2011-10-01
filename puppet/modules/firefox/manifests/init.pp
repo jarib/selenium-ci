@@ -1,12 +1,12 @@
 class firefox {
+  $url     = "http://releases.mozilla.org/pub/mozilla.org/firefox/releases/6.0.2/linux-i686/en-US/firefox-6.0.2.tar.bz2"
   $tarball = "/tools/firefox.tar.bz2"
 
-  file { "firefox-tarball":
-    mode => 644,
-    ensure => file,
-    source => "file:///tmp/vagrant-puppet/modules-0/firefox/files/firefox-6.0.2.tar.bz2", # not ideal
-    path => $tarball
-    require => File['/tools']
+  exec { "download-tarball":
+    command => "curl -o $tarball $firefox_url",
+    user => vagrant,
+    path => "/usr/bin",
+    require => [File['/tools'], Package['curl']]
   }
 
   file { "/etc/profile.d/firefox-path.sh":

@@ -27,6 +27,10 @@ class common {
     ensure => present
   }
 
+  package { "curl":
+    ensure => present
+  }
+
   package { "python-virtualenv":
     ensure => present
   }
