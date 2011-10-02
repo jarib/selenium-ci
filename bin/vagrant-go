@@ -54,7 +54,7 @@ class VagrantGo
     puppet_path   = PUPPET_PATH
     repo_path     = @repo
     vm_repo_path  = VM_REPO_PATH
-    manifest      = @modules.empty? ? 'base' : @modules.join('-')
+    manifest      = "selenium-ci-" + (@modules.empty? ? 'base' : @modules.join('-'))
     modules       = @modules
 
     destination = File.join(dest_dir, "#{manifest}.pp")
