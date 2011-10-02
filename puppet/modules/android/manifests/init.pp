@@ -6,7 +6,7 @@ class android {
     command => "curl -o $tarball http://dl.google.com/android/android-sdk_r13-linux_x86.tgz",
     user    => vagrant,
     path    => "/usr/bin",
-    onlyif  => "[ ! -f $tarball ]",
+    creates => $tarball,
     require => [File['/tools'], Package['curl']]
   }
 
@@ -16,12 +16,12 @@ class android {
   }
 
   exec { "install-android-sdk":
-    cwd     => "/tools",
-    user    => vagrant,
-    command => "tar zxvf $tarball",
-    require => Exec['download-tarball'],
-    path    => ["/usr/bin", "/bin"],
-    onlyif  => "[ ! -d $sdkpath ]",
+    cwd       => "/tools",
+    user      => vagrant,
+    command   => "tar zxvf $tarball",
+    require   => Exec['download-tarball'],
+    path      => ["/usr/bin", "/bin"],
+    creates   => $sdkpath,
     logoutput => on_failure
   }
 

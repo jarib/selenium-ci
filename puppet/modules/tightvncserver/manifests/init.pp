@@ -27,7 +27,7 @@ class tightvncserver {
     user      => "vagrant",
     logoutput => on_failure,
     require   => File['vnc-home'],
-    onlyif    => "[ ! -f $vnc_passwdfile ]"
+    creates   => $vnc_passwdfile
   }
 
   exec { "start-vncserver":
