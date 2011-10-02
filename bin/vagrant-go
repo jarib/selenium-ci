@@ -154,6 +154,8 @@ class VagrantGo
       vbox_manage "unregistervm '#{vm.name}' --delete"
       wait_until(DESTROY_TIMEOUT, 'delete vm') { not vbox_manage("list vms | grep '#{vm.name}'") }
     end
+
+    info "all done"
   end
 
   def vbox_manage(cmd)
