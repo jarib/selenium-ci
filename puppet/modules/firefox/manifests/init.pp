@@ -4,7 +4,7 @@ class firefox {
   $tarball = "/tools/firefox.tar.bz2"
 
   exec { "download-tarball":
-    command   => "curl -o $tarball $url",
+    command   => "curl -L -o $tarball $url",
     user      => vagrant,
     path      => "/usr/bin",
     require   => [File['/tools'], Package['curl']],

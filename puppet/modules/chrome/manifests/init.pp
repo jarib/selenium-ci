@@ -1,7 +1,7 @@
 class chrome {
   # should use https, but not supported by GET by default
   $google_deb_key = "http://dl-ssl.google.com/linux/linux_signing_key.pub"
-  $chromedriver_url = "http://chromium.googlecode.com/files/chromedriver_linux32_14.0.836.0.zip"
+  $chromedriver_url = "http://commondatastorage.googleapis.com/chromium-browser-snapshots/Linux/103665/chrome-linux.test/chromedriver"
 
   file { "google-apt-source":
     ensure => file,
@@ -21,17 +21,13 @@ class chrome {
     ensure => present
   }
 
-  package { "unzip":
-    ensure => present,
-  }
-
   exec { "download-chromedriver":
     cwd       => "/usr/bin",
-    command   => "curl $chromedriver_url | funzip > /usr/bin/chromedriver",
+    command   => "curl -L -o /usr/bin/chromedriver $chromedriver_url",
     path      => "/usr/bin",
     onlyif    => "[ ! -f /usr/bin/chromedriver ]",
     logoutput => on_failure,
-    require   => [Package['unzip'], Package['curl']]
+    require   => [Package['curl']]
   }
 
   file { "/usr/bin/chromedriver":
