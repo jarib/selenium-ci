@@ -91,7 +91,7 @@ class VagrantGo
       Options:
 
         -Xmodules=<list>  - comma-separated list of modules to use for the VM
-        -Xrepo=<name>     - path to selenium checkout (default: cwd)
+        -Xshare=<name>    - path to directory to share (default: cwd)
         -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
         -Xvideo           - enable video recording
 
@@ -118,7 +118,7 @@ class VagrantGo
     @vnc_port     = Integer(opts.delete('vnc.port')) if opts.member?('vnc.port')
     @record_video = opts.delete('video').to_s == "true"
 
-    @repo = opts.delete('repo') { Dir.pwd } # assume we're running from a checkout
+    @repo = opts.delete('share') { Dir.pwd } # assume we're running from a checkout
     if @repo == "none"
       @repo = nil
     else
@@ -134,7 +134,7 @@ class VagrantGo
     return unless @repo
 
     unless File.exist?(File.join(@repo, "go"))
-      raise Error, "not a selenium repo: #{@repo.inspect}, specify -Xrepo=none if you want to execute arbitrary commands"
+      raise Error, "not a selenium repo: #{@repo.inspect}, specify -Xshare=none if you want to execute arbitrary commands"
     end
   end
 
