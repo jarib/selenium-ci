@@ -11,7 +11,7 @@ class gnome {
   package { "metacity":
     ensure => installed,
   }
-  
+
   file { "vnc-xstartup":
     ensure => file,
     path   => "/home/vagrant/.vnc/xstartup",
@@ -19,6 +19,9 @@ class gnome {
     mode   => 755,
     owner  => vagrant
   }
-  
+
+  Package['gnome-session'] -> File['vnc-xstartup']
+  Package['metacity'] -> File['vnc-xstartup']
+
   File['/home/vagrant/.vnc'] -> File['vnc-xstartup'] -> Exec['start-vncserver']
 }
