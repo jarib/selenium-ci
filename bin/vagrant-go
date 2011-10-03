@@ -322,6 +322,7 @@ class VagrantGo
   def locked(&blk)
     FileUtils.mkdir_p File.dirname(lock_path)
     start_time = Time.now
+    ret = nil
 
     File.open(lock_path, "w+") { |f|
       f.fcntl Fcntl::F_SETFD, Fcntl::FD_CLOEXEC
@@ -338,11 +339,12 @@ class VagrantGo
       end
 
       info "acquired lock: #{lock_path.inspect}"
-      yield
+      ret = yield
       info "releasing lock: #{lock_path.inspect}"
     }
 
     info "released lock: #{lock_path.inspect}"
+    ret
   end
 
   def lock_path
