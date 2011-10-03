@@ -1,41 +1,46 @@
 class tightvncserver {
+  $vnc_display    = ":1"
+  $vnc_passwd     = "selenium"
+  $vnc_home       = "/home/vagrant/.vnc"
+  $vnc_passwdfile = "$vnc_home/passwd"
+  $vnc_pid        = "$vnc_home/$::hostname$vnc_display.pid"
+
+  file { "/etc/profile.d/vnc-display.sh":
+    content => "export DISPLAY=$vnc_display",
+    mode => 755
+  }
 
   package { "tightvncserver":
     ensure => present
   }
 
-  file { "/home/vagrant/.vnc":
-    ensure => directory,
-    mode => 755,
-    owner => vagrant
+  file { "vnc-home":
+     ensure => directory,
+     mode   => 755,
+     owner  => vagrant,
+     path => "/home/vagrant/.vnc"
   }
 
-  file { "/home/vagrant/.vnc/passwd":
-    ensure => file,
-    source => "file:///tmp/vagrant-puppet/modules-0/tightvncserver/files/passwd",
-    mode => 600,
-    owner => vagrant
-  }
-
-  file { "/home/vagrant/.vnc/xstartup":
-    ensure => file,
-    owner => vagrant,
-    mode => 755,
-    source => "file:///tmp/vagrant-puppet/modules-0/tightvncserver/files/xstartup" # not ideal
+  exec { "create-vnc-passwd":
+    command   => "echo -n $vnc_passwd | vncpasswd -f > $vnc_passwdfile",
+    path      => "/usr/bin:/usr/sbin:/bin:/usr/local/bin",
+    user      => "vagrant",
+    logoutput => on_failure,
+    require   => File['vnc-home'],
+    creates   => $vnc_passwdfile
   }
 
   exec { "start-vncserver":
-    command => "tightvncserver :1",
-    path => "/usr/bin:/bin",
-    onlyif => 'test ! -f "/home/vagrant/.vnc/lucid32:1.pid"',
-    user => "vagrant",
-    cwd => "/home/vagrant",
-    logoutput => on_failure,
+    command     => "tightvncserver $vnc_display",
+    path        => "/usr/bin:/bin",
+    onlyif      => "[ ! -f \"$vnc_pid\" ] || ! ps `cat \"$vnc_pid\"` >/dev/null",
+    user        => "vagrant",
+    cwd         => "/home/vagrant",
+    logoutput   => on_failure,
     environment => ["HOME=/home/vagrant"]
   }
 
-  Package['tightvncserver']  -> Exec['start-vncserver']
-  File["/home/vagrant/.vnc"] -> File['/home/vagrant/.vnc/xstartup'] -> Exec['start-vncserver']
-  File['/home/vagrant/.vnc'] -> File['/home/vagrant/.vnc/passwd']   -> Exec['start-vncserver']
+  Package['tightvncserver'] -> Exec['start-vncserver']
+  Exec['create-vnc-passwd'] -> Exec['start-vncserver']
 }
 

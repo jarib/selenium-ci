@@ -15,13 +15,15 @@ class VagrantGo
   class TimeoutError < StandardError; end
   class CommandFailedError < StandardError; end
 
-  ROOT             = File.expand_path("../..", __FILE__)
-  TEMPLATE_PATH    = File.join(ROOT, "Vagrantfile.erb")
-  PUPPET_PATH      = File.join(ROOT, "puppet")
-  VM_REPO_PATH     = "/selenium-trunk"
+  ROOT                   = File.expand_path("../..", __FILE__)
+  VAGRANT_TEMPLATE_PATH  = File.join(ROOT, 'templates', "Vagrantfile.erb")
+  MANIFEST_TEMPLATE_PATH = File.join(ROOT, 'templates', "manifest.pp.erb")
+  PUPPET_PATH            = File.join(ROOT, "puppet")
+  VM_REPO_PATH           = "/selenium-trunk"
 
   COMMAND_TIMEOUT        = 60*30
-  VM_LOCK_TIMEOUT        = 60*15
+  VM_LOCK_TIMEOUT        = 60*35
+  DESTROY_TIMEOUT        = 60*10
   SSH_CONNECTION_TIMEOUT = 20
 
   def initialize(args)
@@ -43,43 +45,55 @@ class VagrantGo
     }
   end
 
-  def write_vagrantfile_to(dest_dir)
+  def generate_files_in(dest_dir)
     unless File.directory? dest_dir
       raise ArgumentError, "#{dest_dir} is not a directory"
     end
 
-    # vars used by template
+    # vars used by templates
     puppet_path   = PUPPET_PATH
     repo_path     = @repo
     vm_repo_path  = VM_REPO_PATH
-    manifest      = @manifest
+    manifest      = "selenium-ci-" + (@modules.empty? ? 'base' : @modules.join('-'))
+    modules       = @modules
 
-    destination = File.join(dest_dir, "Vagrantfile")
-    log.info "creating Vagrantfile [#{destination}] for #{repo_path}"
+    destination = File.join(dest_dir, "#{manifest}.pp")
+    info "creating manifest [#{destination}] for #{repo_path}"
 
     File.open(destination, "w") do |io|
-      io << ERB.new(template, nil, "%-<>").result(binding)
+      io << ERB.new(File.read(MANIFEST_TEMPLATE_PATH), nil, "%-<>").result(binding)
+    end
+
+    destination = File.join(dest_dir, "Vagrantfile")
+    info "creating Vagrantfile [#{destination}] for #{repo_path}"
+
+    File.open(destination, "w") do |io|
+      io << ERB.new(File.read(VAGRANT_TEMPLATE_PATH), nil, "%-<>").result(binding)
     end
   end
 
   def say(*args)
-    log.info args.first
+    log.info "[vagrant] #{args.first}"
   end
 
   private
+
+  def info(str)
+    log.info "[selenium-ci] #{str}"
+  end
 
   def parse_args(args)
     if args.empty?
       puts <<-HELP
 
-    #{File.basename $PROGRAM_NAME} [options] [targets]
+      #{File.basename $PROGRAM_NAME} [options] [targets]
 
-    Options:
+      Options:
 
-      -Xmanifest=<name> - what manifest to use for the VM (default: firefox)
-      -Xrepo=<name>     - path to selenium checkout (default: cwd)
-      -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
-      -Xvideo           - enable video recording
+        -Xmodules=<list>  - comma-separated list of modules to use for the VM
+        -Xshare=<name>    - path to directory to share (default: cwd)
+        -Xvnc.port=<num>  - forward this local port to the VNC server in the VM
+        -Xvideo           - enable video recording
 
       HELP
       exit 1
@@ -99,14 +113,12 @@ class VagrantGo
       end
     }
 
-    log.info opts.inspect
-
     @targets      = args - xargs
-    @manifest     = opts.delete('manifest') || 'base'
+    @modules      = opts.delete('modules').to_s.split(',')
     @vnc_port     = Integer(opts.delete('vnc.port')) if opts.member?('vnc.port')
     @record_video = opts.delete('video').to_s == "true"
 
-    @repo = opts.delete('repo') { Dir.pwd } # assume we're running from a checkout
+    @repo = opts.delete('share') { Dir.pwd } # assume we're running from a checkout
     if @repo == "none"
       @repo = nil
     else
@@ -122,7 +134,7 @@ class VagrantGo
     return unless @repo
 
     unless File.exist?(File.join(@repo, "go"))
-      raise Error, "not a selenium repo: #{@repo.inspect}, specify -Xrepo=none if you want to execute arbitrary commands"
+      raise Error, "not a selenium repo: #{@repo.inspect}, specify -Xshare=none if you want to execute arbitrary commands"
     end
   end
 
@@ -132,15 +144,32 @@ class VagrantGo
   end
 
   def destroy_vm
-    log.info "destroying VM @ #{Dir.pwd}"
-    with_lock_guard { vagrant.cli "destroy" }
+    return unless vm # probably timed out waiting for lock
+    info "destroying VM @ #{Dir.pwd}"
+
+    locked do
+      vbox_manage "controlvm '#{vm.name}' poweroff" or raise Error, "could not poweroff #{vm.name}!"
+      wait_until(DESTROY_TIMEOUT, 'destroy vm') { vbox_manage "showvminfo '#{vm.name}' | grep State | grep 'powered off'" }
+
+      vbox_manage "unregistervm '#{vm.name}' --delete"
+      wait_until(DESTROY_TIMEOUT, 'delete vm') { not vbox_manage("list vms | grep '#{vm.name}'") }
+    end
+
+    info "all done"
+  end
+
+  def vbox_manage(cmd)
+    cmd = "VBoxManage #{cmd} 2>&1"
+    log.info "[vbox] #{cmd}"
+
+    system(cmd)
   end
 
   def in_vm_dir(&blk)
-    log.info "creating VM with manifest #{@manifest.inspect} for `#{target_string}` [#{@repo}]"
+    info "creating VM with modules #{@modules.inspect} for `#{target_string}` [#{@repo}]"
 
     vm_dir = Dir.mktmpdir
-    write_vagrantfile_to vm_dir
+    generate_files_in vm_dir
 
     begin
       Dir.chdir(vm_dir, &blk)
@@ -158,8 +187,8 @@ class VagrantGo
     )
   end
 
-  def template
-    File.read(TEMPLATE_PATH)
+  def vm
+    @vm ||= vagrant.primary_vm.vm
   end
 
   def run_build
@@ -215,7 +244,7 @@ class VagrantGo
     output_file = "/tmp/build-video.mp4"
     log_file = "/tmp/build-video-log.txt"
 
-    log.info "starting video recording @ #{output_file.inspect}"
+    info "starting video recording @ #{output_file.inspect}"
     run_command "ffmpeg -an -f x11grab -y -r 5 -s 1024x768 -i :1.0+0,0 -vcodec mpeg4 -sameq #{output_file} &"
 
     begin
@@ -224,11 +253,11 @@ class VagrantGo
       video_dest = File.join VM_REPO_PATH, 'build', 'build-video.mp4'
       log_dest = File.join VM_REPO_PATH, 'build', 'build-video-log.txt'
 
-      log.info "moving #{output_file} -> #{video_dest}"
+      info "moving #{output_file} -> #{video_dest}"
       status = exec "mv #{output_file} #{video_dest}"
       log.warn "could not move video to build folder" unless status == 0
 
-      log.info "moving #{log_file} -> #{log_dest}"
+      info "moving #{log_file} -> #{log_dest}"
       status = exec "mv #{log_file} #{log_dest}"
       log.warn "could not move video log to build folder" unless status == 0
     end
@@ -267,17 +296,26 @@ class VagrantGo
   end
 
   def with_lock_guard(&blk)
-    start_time = Time.now
-    begin
-      yield
-    rescue Vagrant::Errors::EnvironmentLockedError
-      if Time.now > (start_time + VM_LOCK_TIMEOUT)
-        raise TimeoutError, "timed out after #{VM_LOCK_TIMEOUT} seconds, waiting for vm lock"
+    wait_until(VM_LOCK_TIMEOUT, "vm lock") {
+      begin
+        yield
+        true
+      rescue Vagrant::Errors::EnvironmentLockedError
+        info "waiting for vm lock"
+        false
+      end
+    }
+  end
+
+  def wait_until(timeout, desc, &blk)
+    max = Time.now + timeout
+
+    until yield
+      if Time.now >= max
+        raise TimeoutError, "timed out after #{timeout} seconds, waiting for #{desc}"
       end
 
-      log.info "waiting for vm lock"
       sleep 1
-      retry
     end
   end
 
@@ -289,7 +327,7 @@ class VagrantGo
       f.fcntl Fcntl::F_SETFD, Fcntl::FD_CLOEXEC
 
       while f.flock(File::LOCK_EX | File::LOCK_NB) === false
-        log.info "waiting for #{lock_path.inspect}"
+        info "waiting for #{lock_path.inspect}"
 
         if Time.now >= (start_time + VM_LOCK_TIMEOUT)
           raise Error, "timed out after #{VM_LOCK_TIMEOUT} seconds waiting for lock on #{lock_path.inspect}"
@@ -303,7 +341,7 @@ class VagrantGo
   end
 
   def lock_path
-    @lock_path ||= File.join(ROOT, "tmp", "find-free-port.lock")
+    @lock_path ||= File.join(ROOT, "tmp", "selenium-ci.lock")
   end
 
   def log
@@ -320,9 +358,9 @@ class VagrantGo
   def run_command(cmd)
     status = 0
 
-    log.info "executing command: #{cmd}"
+    info "executing command: #{cmd}"
     status = exec(cmd)
-    log.info "exit status #{status}    : #{cmd}"
+    info "exit status #{status}    : #{cmd}"
 
     if status != 0
       raise CommandFailedError, "command exited with status #{status}: #{cmd.inspect}"

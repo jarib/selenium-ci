@@ -1,0 +1,8 @@
+# shared
+include common
+include tightvncserver
+
+# configured with -Xmodules
+<%- modules.each do |mod| -%>
+include <%= mod %>
+<%- end -%>
