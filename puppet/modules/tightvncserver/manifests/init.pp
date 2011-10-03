@@ -14,11 +14,10 @@ class tightvncserver {
     ensure => present
   }
 
-  file { "vnc-home":
+  file { $vnc_home:
      ensure => directory,
      mode   => 755,
-     owner  => vagrant,
-     path => "/home/vagrant/.vnc"
+     owner  => vagrant
   }
 
   exec { "create-vnc-passwd":
@@ -26,7 +25,7 @@ class tightvncserver {
     path      => "/usr/bin:/usr/sbin:/bin:/usr/local/bin",
     user      => "vagrant",
     logoutput => on_failure,
-    require   => File['vnc-home'],
+    require   => File[$vnc_home],
     creates   => $vnc_passwdfile
   }
 
