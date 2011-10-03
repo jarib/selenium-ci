@@ -326,7 +326,8 @@ class VagrantGo
     File.open(lock_path, "w+") { |f|
       f.fcntl Fcntl::F_SETFD, Fcntl::FD_CLOEXEC
 
-      while f.flock(File::LOCK_EX | File::LOCK_NB) === false
+      info "acquiring lock: #{lock_path.inspect}"
+      while f.flock(File::LOCK_EX | File::LOCK_NB) == false
         info "waiting for #{lock_path.inspect}"
 
         if Time.now >= (start_time + VM_LOCK_TIMEOUT)
@@ -336,8 +337,12 @@ class VagrantGo
         sleep 1
       end
 
+      info "acquired lock: #{lock_path.inspect}"
       yield
+      info "releasing lock: #{lock_path.inspect}"
     }
+
+    info "released lock: #{lock_path.inspect}"
   end
 
   def lock_path
