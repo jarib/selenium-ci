@@ -17,11 +17,12 @@ define firefox::install($version) {
   }
 
   exec { "install-firefox":
-    cwd     => "/tools",
-    command => "tar jxvf firefox.tar.bz2",
-    require => Exec['download-tarball'],
-    path    => ["/usr/bin", "/bin"],
-    creates => "/tools/firefox/firefox"
+    cwd       => "/tools",
+    command   => "tar jxvf firefox.tar.bz2",
+    require   => Exec['download-tarball'],
+    path      => ["/usr/bin", "/bin"],
+    creates   => "/tools/firefox/firefox",
+    logoutput => on_failure
   }
 
   #
