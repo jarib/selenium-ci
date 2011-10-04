@@ -147,7 +147,7 @@ class VagrantGo
   end
 
   def destroy_vm
-    return unless vm # probably timed out waiting for lock
+    return unless @vm_name # probably timed out waiting for lock
     info "destroying VM @ #{Dir.pwd}"
 
     locked do
