@@ -141,6 +141,9 @@ class VagrantGo
   def launch_vm
     log.info "launching VM @ #{Dir.pwd}"
     with_lock_guard { vagrant.cli "up" }
+
+    # store the vm name for destroy later
+    @vm_name = vagrant.primary_vm.vm.name
   end
 
   def destroy_vm
@@ -148,11 +151,11 @@ class VagrantGo
     info "destroying VM @ #{Dir.pwd}"
 
     locked do
-      vbox_manage "controlvm '#{vm.name}' poweroff" or raise Error, "could not poweroff #{vm.name}!"
-      wait_until(DESTROY_TIMEOUT, 'destroy vm') { vbox_manage "showvminfo '#{vm.name}' | grep State | grep 'powered off'" }
+      vbox_manage "controlvm '#{@vm_name}' poweroff" or raise Error, "could not poweroff #{@vm_name}!"
+      wait_until(DESTROY_TIMEOUT, 'destroy vm') { vbox_manage "showvminfo '#{@vm_name}' | grep State | grep 'powered off'" }
 
-      vbox_manage "unregistervm '#{vm.name}' --delete"
-      wait_until(DESTROY_TIMEOUT, 'delete vm') { not vbox_manage("list vms | grep '#{vm.name}'") }
+      vbox_manage "unregistervm '#{@vm_name}' --delete"
+      wait_until(DESTROY_TIMEOUT, 'delete vm') { not vbox_manage("list vms | grep '#{@vm_name}'") }
     end
 
     info "all done"
@@ -185,10 +188,6 @@ class VagrantGo
 
       env
     )
-  end
-
-  def vm
-    @vm ||= vagrant.primary_vm.vm
   end
 
   def run_build
