@@ -45,4 +45,8 @@ define firefox::install($version) {
   package { "libibus-dev":
     ensure => installed,
   }
+
+  package { "libc6-dev-amd64":
+    ensure => installed,
+  }
 }
